@@ -280,7 +280,6 @@ async function downloadMedia(mediaId) {
 }
 
 // ─────────────────────── NID EXTRACTION ────────────────────────
-```javascript
 function mapAPIData(d) {
   return {
     nid:              d.nationalId || d.nid || d.NID || d.national_id || "",
@@ -314,6 +313,32 @@ function mapAPIData(d) {
   };
 }
 
+async function extractNIDFromPDF(buffer) {
+  const form = new FormData();
+  form.append("pdf", buffer, { filename: "nid.pdf", contentType: "application/pdf" });
+  try {
+    const res = await axios.post(CONFIG.API_EXTRACT_URL, form, {
+      headers: form.getHeaders(),
+      maxContentLength: Infinity, maxBodyLength: Infinity, timeout: 60000,
+    });
+    console.log("📦 API Response:", JSON.stringify(res.data).slice(0, 300));
+    const raw    = res.data?.data ? res.data.data : res.data;
+    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    return mapAPIData(parsed);
+  } catch (err) {
+    console.error("❌ Extract API failed:", err.response?.status, JSON.stringify(err.response?.data), err.message);
+    throw new Error("NID extract করতে পারিনি: " + (err.response?.data?.message || err.message));
+  }
+}
+
+// ─────────────────────── HTML BUILDER ──────────────────────────
+function toBn(str) {
+  if (!str) return "";
+  const map = { "0":"০","1":"১","2":"২","3":"৩","4":"৪","5":"৫","6":"৬","7":"৭","8":"৮","9":"৯" };
+  return String(str).replace(/[0-9]/g, d => map[d]);
+}
+
+// ── V1 — signtoserverv1 php exact recreation ──
 function buildHTMLv1(d) {
   const presentAddr  = (d.presentAddress  || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
   const permanentAddr = (d.permanentAddress || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
@@ -511,6 +536,7 @@ function buildHTMLv1(d) {
 </html>`;
 }
 
+// ── V2 — signtoserverv2 php exact recreation ──
 function buildHTMLv2(d) {
   const presentAddrFormatted   = (d.presentAddress  || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
   const permanentAddrFormatted = (d.permanentAddress || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
@@ -754,6 +780,7 @@ function buildHTMLv2(d) {
 </html>`;
 }
 
+// ── V3 — signtoserverv3 php exact recreation with contenteditable ──
 function buildHTMLv3(d) {
   const presentAddrFormatted   = (d.presentAddress  || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
   const permanentAddrFormatted = (d.permanentAddress || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
@@ -1044,7 +1071,6 @@ function buildHTMLv3(d) {
 </body>
 </html>`;
 }
-
 
 function buildHTML(version, data) {
   if (version === 1) return buildHTMLv1(data);
