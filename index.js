@@ -446,35 +446,31 @@ function mapAPIData(d) {
   };
 }
 
-async function extractNIDFromPDF(pdfBuffer) {
-  const form = new FormData();
-  form.append("pdf", pdfBuffer, { filename: "nid.pdf", contentType: "application/pdf" });
-  const res = await axios.post(CONFIG.API_EXTRACT_URL, form, {
-    headers: { ...form.getHeaders() },
-    timeout: 60000
-  });
-  
-  let rawData = res.data;
-  // Handle API response structure: { success: true, data: { ... } }
-  if (rawData && rawData.success === true && rawData.data) {
-    rawData = rawData.data;
-  }
-  // If response is a string, try to parse as JSON
-  if (typeof rawData === "string") {
-    try {
-      rawData = JSON.parse(rawData);
-      if (rawData && rawData.success === true && rawData.data) {
-        rawData = rawData.data;
-      }
-    } catch {
-      rawData = {};
+// Fetch PDF data using API_EXTRACT_URL
+async function extractNIDFromPDF(buffer) {
+  try {
+    const form = new FormData();
+    // PHP ফাইলটি 'pdf' ফিল্ডে ফাইল রিসিভ করে, তাই এখানে 'pdf' দেওয়া হলো
+    form.append("pdf", buffer, { 
+      filename: "document.pdf",
+      contentType: "application/pdf"
+    });
+
+    const res = await axios.post(CONFIG.API_EXTRACT_URL, form, {
+      headers: form.getHeaders(),
+    });
+
+    // PHP ফাইলের রেসপন্স অনুযায়ী ডাটা পার্স করা
+    if (res.data && res.data.success === true) {
+      return mapAPIData(res.data.data);
+    } else {
+      // যদি success false আসে, তবে PHP এর পাঠানো message টি এরর হিসেবে দেখাবে
+      throw new Error(res.data.message || "API থেকে সঠিক রেসপন্স পাওয়া যায়নি।");
     }
+  } catch (error) {
+    console.error("API Extraction Error:", error.message);
+    throw new Error(error.response?.data?.message || error.message || "API থেকে Data Extract করতে সমস্যা হয়েছে।");
   }
-  // Ensure we have an object
-  if (typeof rawData !== "object" || rawData === null) {
-    rawData = {};
-  }
-  return mapAPIData(rawData);
 }
 
 function buildHTMLv1(d) {
