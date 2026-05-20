@@ -280,6 +280,7 @@ async function downloadMedia(mediaId) {
 }
 
 // ─────────────────────── NID EXTRACTION ────────────────────────
+```javascript
 function mapAPIData(d) {
   return {
     nid:              d.nationalId || d.nid || d.NID || d.national_id || "",
@@ -309,36 +310,10 @@ function mapAPIData(d) {
     presentAddress:   (typeof d.presentAddress   === "string") ? d.presentAddress   : (d.presentAddress?.addressLine   || d.address || ""),
     permanentAddress: (typeof d.permanentAddress === "string") ? d.permanentAddress : (d.permanentAddress?.addressLine || ""),
     photo:            d.photo      || d.userIMG || d.imageUrl12 || "",
-    dateOfToday:      new Date().toLocaleDateString("bn-BD", { year: "numeric", month: "long", day: "numeric" }),
+    dateOfToday:      d.dateOfToday || new Date().toLocaleDateString("bn-BD", { year: "numeric", month: "long", day: "numeric" }),
   };
 }
 
-async function extractNIDFromPDF(buffer) {
-  const form = new FormData();
-  form.append("pdf", buffer, { filename: "nid.pdf", contentType: "application/pdf" });
-  try {
-    const res = await axios.post(CONFIG.API_EXTRACT_URL, form, {
-      headers: form.getHeaders(),
-      maxContentLength: Infinity, maxBodyLength: Infinity, timeout: 60000,
-    });
-    console.log("📦 API Response:", JSON.stringify(res.data).slice(0, 300));
-    const raw    = res.data?.data ? res.data.data : res.data;
-    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
-    return mapAPIData(parsed);
-  } catch (err) {
-    console.error("❌ Extract API failed:", err.response?.status, JSON.stringify(err.response?.data), err.message);
-    throw new Error("NID extract করতে পারিনি: " + (err.response?.data?.message || err.message));
-  }
-}
-
-// ─────────────────────── HTML BUILDER ──────────────────────────
-function toBn(str) {
-  if (!str) return "";
-  const map = { "0":"০","1":"১","2":"২","3":"৩","4":"৪","5":"৫","6":"৬","7":"৭","8":"৮","9":"৯" };
-  return String(str).replace(/[0-9]/g, d => map[d]);
-}
-
-// ── V1 — signtoserverv1 php exact recreation ──
 function buildHTMLv1(d) {
   const presentAddr  = (d.presentAddress  || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
   const permanentAddr = (d.permanentAddress || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
@@ -496,7 +471,7 @@ function buildHTMLv1(d) {
         <div id="mothers_name" style="position: absolute; left: 55%; top: 56.2%; font-size: 14px;">${d.mother}</div>
         
         <div style="position: absolute; left: 37%; top: 59%; font-size: 14px;">স্বামী/স্ত্রীর নাম</div>
-        <div id="spouse_name" style="position: absolute; left: 55%; top: 59%; font-size: 14px;">${d.spouse || ""}</div>
+        <div id="spouse_name" style="position: absolute; left: 55%; top: 59%; font-size: 14px;">${d.spouse}</div>
         
         <div style="position: absolute; left: 37%; top: 61.8%; font-size: 16px;"><b>অন্যান্য তথ্য</b></div>
         
@@ -532,15 +507,10 @@ function buildHTMLv1(d) {
             <div style="flex: 1;">${d.nameEnglish}</div>
         </div>
     </div> 
-    <script> window.onload = function(){setTimeout(wp, 500);}; function wp(){window.print();}</script>
-    <button class="no-print" id="print-pdf-btn" onclick="window.print()">
-        <i class="fas fa-file-pdf"></i> Save as PDF / Print
-    </button>
 </body>
 </html>`;
 }
 
-// ── V2 — signtoserverv2 php exact recreation ──
 function buildHTMLv2(d) {
   const presentAddrFormatted   = (d.presentAddress  || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
   const permanentAddrFormatted = (d.permanentAddress || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
@@ -555,7 +525,7 @@ function buildHTMLv2(d) {
     <link href="https://fonts.maateen.me/solaiman-lipi/font.css" rel="stylesheet">
     <style>
         body {
-            font-family: 'Solaiman Lipi', sans-serif;
+            font-family: 'Solaiman Lipi', 'Solaimanlipi', sans-serif;
             margin: auto;
             padding: 0;
             background-color: #f4f4f9;
@@ -579,11 +549,12 @@ function buildHTMLv2(d) {
         }
 
         .section-title {
-            font-size: 17px;
+            font-size: 15px!important;
             font-weight: bold;
             background: #bbe6ed;
             color: black;
             padding: 5px;
+            margin-bottom: 3px;
         }
 
         table {
@@ -600,21 +571,24 @@ function buildHTMLv2(d) {
             width: 70%;
         }
 
-        table,
-        th,
-        td {
+        table, th, td {
             border: 1px solid #EAEAEA;
         }
 
-        th,
-        td {
-            padding: 8px;
+        th, td {
+            font-size: 13.5px!important;
+            font-family: 'Solaimanlipi', sans-serif;
+            padding: 2px 5px !important;
             text-align: left;
         }
 
         table td:first-child {
             font-weight: bold;
             color: #000;
+        }
+
+        strong {
+            font-weight: normal!important;
         }
 
         #footer_english {
@@ -627,8 +601,8 @@ function buildHTMLv2(d) {
         }
 
         .sub_container {
-            padding-left: 40px;
-            padding-right: 40px;
+            margin: 5px 0 !important;
+            padding: 0 10px;
         }
 
         .header_top {
@@ -637,7 +611,7 @@ function buildHTMLv2(d) {
         }
 
         p.text {
-            line-height: 10px;
+            line-height: 7px;
         }
 
         img#user_img {
@@ -653,6 +627,10 @@ function buildHTMLv2(d) {
             text-align: center;
         }
 
+        .footer_text {
+            margin-top: 5px !important;
+        }
+
         @media print {
             * {
                 -webkit-print-color-adjust: exact;
@@ -665,6 +643,9 @@ function buildHTMLv2(d) {
             }
             .section {
                 page-break-inside: avoid;
+            }
+            .container {
+                margin: 0 !important;
             }
         }
     </style> 
@@ -763,7 +744,7 @@ function buildHTMLv2(d) {
                 </div>
             </div>
 
-            <div class="footer_text" style="margin-top: 15px;">
+            <div class="footer_text">
                 <p style="text-align: center; color: red; font-size: 13px;">উপরে প্রদর্শিত তথ্যসমূহ জাতীয় পরিচয়পত্র সংশ্লিষ্ট, ভোটার তালিকার সাথে সরাসরি সম্পর্কযুক্ত নয়।</p>
                 <p id="footer_english">This is Software Generated Report From Bangladesh Election Commission, Signature &amp; Seal Aren't Required.</p>
             </div>
@@ -773,7 +754,6 @@ function buildHTMLv2(d) {
 </html>`;
 }
 
-// ── V3 — signtoserverv3 php exact recreation with contenteditable ──
 function buildHTMLv3(d) {
   const presentAddrFormatted   = (d.presentAddress  || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
   const permanentAddrFormatted = (d.permanentAddress || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
@@ -788,7 +768,7 @@ function buildHTMLv3(d) {
   <link href="https://fonts.maateen.me/solaiman-lipi/font.css" rel="stylesheet">
   <style>
     body {
-        font-family: 'Solaiman Lipi', sans-serif;
+        font-family: 'Solaimanlipi', sans-serif;
         margin: auto;
         padding: 0;
         background-color: #f4f4f9;
@@ -813,7 +793,7 @@ function buildHTMLv3(d) {
 
     .section-title {
         font-size: 16px!important;
-        font-family: 'Solaiman Lipi', sans-serif;
+        font-family: 'Solaimanlipi', sans-serif;
         font-weight: bold;
         background: #bbe6ed;
         color: black;
@@ -821,14 +801,11 @@ function buildHTMLv3(d) {
     }
     td {
         font-size: 14.5px!important;
-        font-family: 'Solaiman Lipi', sans-serif;
+        font-family: 'Solaimanlipi', sans-serif;
         padding: 2px 5px !important; 
     }  
     strong {
         font-weight: normal!important;
-    }
-    body {
-        font-family: 'Solaiman Lipi', sans-serif;
     }
 
     /* sub_container padding */
@@ -904,26 +881,13 @@ function buildHTMLv3(d) {
         letter-spacing: -0.2px;
     }
 
-    /* এডিট করার সময় বর্ডার হাইলাইট */
-    [contenteditable="true"]:focus {
-        outline: 1px dashed #007bff;
-        background: #f9f9f9;
-    }
-
     @media print {
         * {
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
         }
-        .print {
-            display: none !important;
-        }
         .container {
             margin: 0 !important;
-        }
-        /* প্রিন্ট করার সময় যেন এডিট বর্ডার না আসে */
-        [contenteditable="true"]:focus {
-            outline: none;
         }
     }
   </style>
@@ -934,18 +898,18 @@ function buildHTMLv3(d) {
       <div class="header">
         <div class="header_top">
           <img src="${SITE}/assets/server/img/logo-server-copy.svg" alt="" class="logo" style="width: 50px; margin-top: 10px;" onerror="this.onerror=null; this.src='https://surokkha.gov.bd/favicon.png';"> 
-          <p class="text_one text" contenteditable="true" style="font-weight: bold; font-size: 15px;">বাংলাদেশ নির্বাচন কমিশন</p>
-          <p class="text_two text" contenteditable="true" style="font-size: 13px;">নির্বাচন কমিশন সচিবালয়</p>
-          <p class="text_three text" contenteditable="true" style="font-size: 12px; margin-bottom: 10px;">জাতীয় পরিচয় নিবন্ধন অনুবিভাগ</p>
+          <p class="text_one text" style="font-weight: bold; font-size: 15px;">বাংলাদেশ নির্বাচন কমিশন</p>
+          <p class="text_two text" style="font-size: 13px;">নির্বাচন কমিশন সচিবালয়</p>
+          <p class="text_three text" style="font-size: 12px; margin-bottom: 10px;">জাতীয় পরিচয় নিবন্ধন অনুবিভাগ</p>
         </div>
         <div class="user_photo">
           <img src="${d.photo}" alt="" id="user_img" onerror="this.onerror=null; this.src='https://dakhila-ldtax-gov-bd.rf.gd/assets/media/card/blank.png';"> 
-          <div class="name" contenteditable="true" style="margin-top: 5px;">${d.nameEnglish}</div>
+          <div class="name" style="margin-top: 5px;">${d.nameEnglish}</div>
         </div>
       </div>
 
       <div class="section">
-        <div class="section-title" contenteditable="true">জাতীয় পরিচিতি তথ্য</div>
+        <div class="section-title">জাতীয় পরিচিতি তথ্য</div>
         <div class="section-content">
           <table>
             <colgroup>
@@ -953,31 +917,31 @@ function buildHTMLv3(d) {
               <col>
             </colgroup>
             <tr>
-              <td contenteditable="true">জাতীয় পরিচয় পত্র নম্বর</td>
-              <td contenteditable="true"><strong>${d.nid || "N/A"}</strong></td>
+              <td>জাতীয় পরিচয় পত্র নম্বর</td>
+              <td><strong>${d.nid || "N/A"}</strong></td>
             </tr>
             <tr>
-              <td contenteditable="true">পিন নম্বর</td>
-              <td contenteditable="true"><strong>${d.pin || "N/A"}</strong></td>
+              <td>পিন নম্বর</td>
+              <td><strong>${d.pin || "N/A"}</strong></td>
             </tr>
             <tr>
-              <td contenteditable="true">পূর্ববর্তী এনআইডি নম্বর</td>
-              <td contenteditable="true"><strong>${d.oldNid || "N/A"}</strong></td>
+              <td>পূর্ববর্তী এনআইডি নম্বর</td>
+              <td><strong>${d.oldNid || "N/A"}</strong></td>
             </tr>
             <tr>
-              <td contenteditable="true">জন্ম নিবন্ধন নম্বর</td>
-              <td contenteditable="true"><strong>${d.voterNo || "N/A"}</strong></td>
+              <td>জন্ম নিবন্ধন নম্বর</td>
+              <td><strong>${d.voterNo || "N/A"}</strong></td>
             </tr>
             <tr>
-              <td contenteditable="true">ভোটার এলাকা</td>
-              <td contenteditable="true"><strong>${d.voterArea || "N/A"}</strong></td>
+              <td>ভোটার এলাকা</td>
+              <td><strong>${d.voterArea || "N/A"}</strong></td>
             </tr>
           </table>
         </div>
       </div>
 
       <div class="section">
-        <div class="section-title" contenteditable="true">ব্যক্তিগত তথ্য</div>
+        <div class="section-title">ব্যক্তিগত তথ্য</div>
         <div class="section-content">
           <table>
             <colgroup>
@@ -985,35 +949,35 @@ function buildHTMLv3(d) {
               <col>
             </colgroup>
             <tr>
-              <td contenteditable="true">নাম (বাংলা)</td>
-              <td contenteditable="true"><strong>${d.nameBangla || "N/A"}</strong></td>
+              <td>নাম (বাংলা)</td>
+              <td><strong>${d.nameBangla || "N/A"}</strong></td>
             </tr>
             <tr>
-              <td contenteditable="true">নাম (ইংরেজি)</td>
-              <td contenteditable="true"><strong>${d.nameEnglish || "N/A"}</strong></td>
+              <td>নাম (ইংরেজি)</td>
+              <td><strong>${d.nameEnglish || "N/A"}</strong></td>
             </tr>
             <tr>
-              <td contenteditable="true">জন্ম তারিখ</td>
-              <td contenteditable="true"><strong>${d.dob || "N/A"}</strong></td>
+              <td>জন্ম তারিখ</td>
+              <td><strong>${d.dob || "N/A"}</strong></td>
             </tr>
             <tr>
-              <td contenteditable="true">পিতার নাম</td>
-              <td contenteditable="true"><strong>${d.father || "N/A"}</strong></td>
+              <td>পিতার নাম</td>
+              <td><strong>${d.father || "N/A"}</strong></td>
             </tr>
             <tr>
-              <td contenteditable="true">মাতার নাম</td>
-              <td contenteditable="true"><strong>${d.mother || "N/A"}</strong></td>
+              <td>মাতার নাম</td>
+              <td><strong>${d.mother || "N/A"}</strong></td>
             </tr>
             <tr>
-              <td contenteditable="true">স্বামী/স্ত্রীর নাম</td>
-              <td contenteditable="true"><strong>${d.spouse || "N/A"}</strong></td>
+              <td>স্বামী/স্ত্রীর নাম</td>
+              <td><strong>${d.spouse || "N/A"}</strong></td>
             </tr>
           </table>
         </div>
       </div>
 
       <div class="section">
-        <div class="section-title" contenteditable="true">অন্যান্য তথ্য</div>
+        <div class="section-title">অন্যান্য তথ্য</div>
         <div class="section-content">
           <table>
             <colgroup>
@@ -1021,65 +985,66 @@ function buildHTMLv3(d) {
               <col>
             </colgroup>
             <tr>
-              <td contenteditable="true">পেশা</td>
-              <td contenteditable="true"><strong>${d.occupation || "N/A"}</strong></td>
+              <td>পেশা</td>
+              <td><strong>${d.occupation || "N/A"}</strong></td>
             </tr>
             <tr>
-              <td contenteditable="true">রক্তের গ্রুপ</td>
-              <td contenteditable="true"><strong>${d.bloodGroup || "N/A"}</strong></td>
+              <td>রক্তের গ্রুপ</td>
+              <td><strong>${d.bloodGroup || "N/A"}</strong></td>
             </tr>
             <tr>
-              <td contenteditable="true">ধর্ম</td>
-              <td contenteditable="true"><strong>${d.religion || "N/A"}</strong></td>
+              <td>ধর্ম</td>
+              <td><strong>${d.religion || "N/A"}</strong></td>
             </tr>
             <tr>
-              <td contenteditable="true">লিঙ্গ</td>
-              <td contenteditable="true"><strong>${d.gender || "N/A"}</strong></td>
+              <td>লিঙ্গ</td>
+              <td><strong>${d.gender || "N/A"}</strong></td>
             </tr>
             <tr>
-              <td contenteditable="true">শিক্ষাগত যোগ্যতা</td>
-              <td contenteditable="true"><strong>${d.education || "N/A"}</strong></td>
+              <td>শিক্ষাগত যোগ্যতা</td>
+              <td><strong>${d.education || "N/A"}</strong></td>
             </tr>
             <tr>
-              <td contenteditable="true">জন্মস্থান</td>
-              <td contenteditable="true"><strong>${d.birthPlace || "N/A"}</strong></td>
+              <td>জন্মস্থান</td>
+              <td><strong>${d.birthPlace || "N/A"}</strong></td>
             </tr>
           </table>
         </div>
       </div>
 
       <div class="section">
-        <div class="section-title" contenteditable="true">বর্তমান ঠিকানা</div>
+        <div class="section-title">বর্তমান ঠিকানা</div>
         <div class="section-content">
           <table>
             <colgroup>
               <col>
             </colgroup>
-            <tr><td contenteditable="true">${presentAddrFormatted || "N/A"}</td></tr>
+            <tr><td>${presentAddrFormatted || "N/A"}</td></tr>
           </table>
         </div>
       </div>
 
       <div class="section">
-        <div class="section-title" contenteditable="true">স্থায়ী ঠিকানা</div>
+        <div class="section-title">স্থায়ী ঠিকানা</div>
         <div class="section-content">
           <table>
             <colgroup>
               <col>
             </colgroup>
-            <tr><td contenteditable="true">${permanentAddrFormatted || "N/A"}</td></tr>
+            <tr><td>${permanentAddrFormatted || "N/A"}</td></tr>
           </table>
         </div>
       </div>
     </div>
     <div class="footer_text" style="margin-top: 15px;">
-      <p style="text-align: center; color: red; font-size: 13px;" contenteditable="true">উপরে প্রদর্শিত তথ্যসমূহ জাতীয় পরিচয়পত্র সংশ্লিষ্ট, ভোটার তালিকার সাথে সরাসরি সম্পর্কযুক্ত নয়।</p>
-      <p id="footer_english" contenteditable="true">This is Software Generated Report From Bangladesh Election Commission, Signature &amp; Seal Aren't Required.</p>
+      <p style="text-align: center; color: red; font-size: 13px;">উপরে প্রদর্শিত তথ্যসমূহ জাতীয় পরিচয়পত্র সংশ্লিষ্ট, ভোটার তালিকার সাথে সরাসরি সম্পর্কযুক্ত নয়।</p>
+      <p id="footer_english">This is Software Generated Report From Bangladesh Election Commission, Signature &amp; Seal Aren't Required.</p>
     </div>
   </div>
 </body>
 </html>`;
 }
+
 
 function buildHTML(version, data) {
   if (version === 1) return buildHTMLv1(data);
