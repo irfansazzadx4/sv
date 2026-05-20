@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: my-wa-bot
+    runtime: node
+    buildCommand: npm install && npx puppeteer browsers install chrome
+    startCommand: node index.js
+    envVars:
+      - key: PORT
+        generateValue: false
+      - key: ADMIN_PASS
+        sync: false
+      - key: GITHUB_REPO
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: GITHUB_BRANCH
+        value: main
+      - key: RENDER_EXTERNAL_URL
+        sync: false
+    disk:
+      name: bot-storage
+      mountPath: /opt/render/project/src
+      sizeGB: 2
