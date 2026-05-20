@@ -23,13 +23,13 @@ const CONFIG = {
   WA_VERIFY_TOKEN: process.env.WHATSAPP_VERIFY_TOKEN || "myVerifyToken123",
   WA_API_VERSION:  "v21.0",
 
-  API_EXTRACT_URL: "https://auto.onlinebd.top/Signtonid_api_one.php",
+  API_EXTRACT_URL: "https://dakhila-ldtax-gov-bd.rf.gd/api_proxy_server.php",
   SITE_BASE:       "https://dakhila-ldtax-gov-bd.rf.gd",
 
   PDF_API_URL:    process.env.PDF_API_URL,
   PDF_API_SECRET: process.env.PDF_API_SECRET,
 
-  BASE_URL:    process.env.RENDER_EXTERNAL_URL || "https://nidservicebd.onrender.com",
+  BASE_URL:    process.env.RENDER_EXTERNAL_URL || "https://sv-yqxc.onrender.com",
   STORAGE_DIR: path.join(__dirname, "storage"),
   DATA_DIR:    path.join(__dirname, "data"),
 
