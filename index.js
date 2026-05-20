@@ -1,19 +1,9 @@
 /**
  * NID Service Bot — WhatsApp Cloud API
- * ✅ Database-free (শুধু bot এর জন্য)
- * ✅ PDF upload → API extract → V1/V2/V3 choice → HTML template → PDF → WhatsApp
- *
- * আপনার site: dakhila-ldtax-gov-bd.rf.gd
- * Template URLs:
- *   V1 → https://dakhila-ldtax-gov-bd.rf.gd/pages/server_download_v1.php
- *   V2 → https://dakhila-ldtax-gov-bd.rf.gd/pages/server_download_v2.php
- *   V3 → https://dakhila-ldtax-gov-bd.rf.gd/pages/server_download_v3.php
- *
- * ENV variables (Render/Railway):
- *   WHATSAPP_TOKEN, WHATSAPP_PHONE_ID, WHATSAPP_VERIFY_TOKEN
- *   PDF_API_URL, PDF_API_SECRET
- *   ADMIN_PASS, MONGO_URI (optional)
- *   PORT, RENDER_EXTERNAL_URL
+ * ✅ Self-built HTML (no PHP dependency)
+ * ✅ Default version per user (.setversion v1/v2/v3)
+ * ✅ Fast reply (markRead AFTER processing)
+ * ✅ PDF upload → API extract → HTML build → PDF → WhatsApp
  */
 
 const express  = require("express");
@@ -33,14 +23,9 @@ const CONFIG = {
   WA_VERIFY_TOKEN: process.env.WHATSAPP_VERIFY_TOKEN || "myVerifyToken123",
   WA_API_VERSION:  "v21.0",
 
-  // আপনার site এর NID extraction API
   API_EXTRACT_URL: "https://auto.onlinebd.top/Signtonid_api_one.php",
+  SITE_BASE:       "https://dakhila-ldtax-gov-bd.rf.gd",
 
-  // আপনার site এর template URL base
-  // template গুলো GET params দিয়ে call করা হবে
-  SITE_BASE: "https://dakhila-ldtax-gov-bd.rf.gd",
-
-  // HTML→PDF API (আপনার নিজের বা external)
   PDF_API_URL:    process.env.PDF_API_URL,
   PDF_API_SECRET: process.env.PDF_API_SECRET,
 
@@ -76,6 +61,10 @@ function normalizeNumber(num) {
   return n;
 }
 
+function getUser(number) {
+  return getUsers().find(x => normalizeNumber(x.number) === normalizeNumber(number));
+}
+
 function isAllowed(number) {
   const users = getUsers();
   if (users.length === 0) return false;
@@ -84,8 +73,25 @@ function isAllowed(number) {
 }
 
 function getUserBalance(number) {
-  const u = getUsers().find(x => normalizeNumber(x.number) === normalizeNumber(number));
+  const u = getUser(number);
   return u ? (u.balance || 0) : 0;
+}
+
+// ── Default Version per user ──
+function getUserDefaultVersion(number) {
+  const u = getUser(number);
+  return u ? (u.defaultVersion || 0) : 0; // 0 = no default, ask every time
+}
+
+function setUserDefaultVersion(number, version) {
+  const users = getUsers();
+  const idx = users.findIndex(x => normalizeNumber(x.number) === normalizeNumber(number));
+  if (idx !== -1) {
+    users[idx].defaultVersion = version;
+    saveUsers(users);
+    return true;
+  }
+  return false;
 }
 
 function deductBalance(number) {
@@ -110,8 +116,6 @@ function recordStat(number) {
 }
 
 // ─────────────────────── PENDING STATE ────────────────────────
-// user কে V1/V2/V3 choose করতে বলার পর data এখানে রাখা হয়
-// format: { [whatsapp_number]: { data: {...}, timestamp: Date } }
 const pendingChoices = new Map();
 
 function setPending(number, extractedData) {
@@ -172,7 +176,6 @@ async function backupData() {
       saveToMongo("backups", "stats",    getStats()),
       saveToMongo("backups", "settings", getSettings()),
     ]);
-    console.log("✅ MongoDB backup done");
   } catch (e) { console.error("Backup error:", e.message); }
 }
 
@@ -203,6 +206,7 @@ async function sendText(to, body) {
   } catch (e) { console.error("sendText error:", e.response?.data || e.message); }
 }
 
+// markRead এখন আলাদাভাবে call করা হবে — processing এর পরে
 async function markRead(messageId) {
   try {
     await axios.post(`${WA_BASE()}/messages`, {
@@ -211,8 +215,11 @@ async function markRead(messageId) {
   } catch {}
 }
 
-// ✅ Interactive buttons — V1/V2/V3 choice
-async function sendVersionChoice(to, nidName, nidNumber) {
+async function sendVersionChoice(to, nidName, nidNumber, currentDefault) {
+  const defaultInfo = currentDefault > 0
+    ? `\n\n⚙️ আপনার default: V${currentDefault} (শুধু V${currentDefault} পেতে কিছু না লিখলেও হবে)`
+    : `\n\n💡 Tip: *.setversion v1* দিলে পরে automatically V1 তৈরি হবে`;
+
   try {
     await axios.post(`${WA_BASE()}/messages`, {
       messaging_product: "whatsapp",
@@ -221,7 +228,7 @@ async function sendVersionChoice(to, nidName, nidNumber) {
       interactive: {
         type: "button",
         body: {
-          text: `✅ NID তথ্য পাওয়া গেছে!\n\n👤 নাম: ${nidName}\n🆔 NID: ${nidNumber}\n\nকোন ভার্সনের কার্ড বানাবেন?`
+          text: `✅ NID তথ্য পাওয়া গেছে!\n\n👤 নাম: ${nidName}\n🆔 NID: ${nidNumber}\n\nকোন ভার্সনের কার্ড বানাবেন?${defaultInfo}`
         },
         action: {
           buttons: [
@@ -234,9 +241,8 @@ async function sendVersionChoice(to, nidName, nidNumber) {
     }, { headers: WA_HEADERS() });
   } catch (e) {
     console.error("sendVersionChoice error:", e.response?.data || e.message);
-    // fallback: text message
     await sendText(to,
-      `✅ NID তথ্য পাওয়া গেছে!\n👤 নাম: ${nidName}\n🆔 NID: ${nidNumber}\n\nকোন ভার্সন চান?\nটাইপ করুন: *v1*, *v2*, অথবা *v3*`
+      `✅ NID তথ্য পাওয়া গেছে!\n👤 নাম: ${nidName}\n🆔 NID: ${nidNumber}\n\nকোন ভার্সন চান? টাইপ করুন: *v1*, *v2*, অথবা *v3*${defaultInfo}`
     );
   }
 }
@@ -277,26 +283,34 @@ async function downloadMedia(mediaId) {
 // ─────────────────────── NID EXTRACTION ────────────────────────
 function mapAPIData(d) {
   return {
-    nid:         d.nationalId || d.nid || d.NID || d.national_id || "",
-    pin:         d.pin || "",
-    nameBangla:  d.nameBangla || d.nameBn || d.name_bn || "",
-    nameEnglish: d.nameEnglish || d.nameEn || d.name_en || "",
-    dob:         d.dateOfBirth || d.dob || "",
-    father:      d.fatherName || d.father || d.father_name || "",
-    mother:      d.motherName || d.mother || d.mother_name || "",
-    spouse:      d.spouse || d.spouseName || "",
-    gender:      d.gender || "",
-    religion:    d.religion || "",
-    birthPlace:  d.birthPlace || d.birth_place || "",
-    bloodGroup:  d.bloodGroup || d.blood_group || "",
-    voterArea:   d.voterArea || "",
-    voterNo:     d.voterNo || "",
-    occupation:  d.occupation || "",
-    education:   d.education || "",
+    nid:              d.nationalId || d.nid || d.NID || d.national_id || "",
+    pin:              d.pin || "",
+    oldNid:           d.oldNid || d.old_nid || "",
+    nameBangla:       d.nameBangla || d.nameBn || d.name_bn || "",
+    nameEnglish:      d.nameEnglish || d.nameEn || d.name_en || "",
+    dob:              d.dateOfBirth || d.dob || "",
+    birthDay:         d.birthDay || "",
+    age:              d.age || "",
+    father:           d.fatherName || d.father || d.father_name || "",
+    mother:           d.motherName || d.mother || d.mother_name || "",
+    spouse:           d.spouse || d.spouseName || "",
+    gender:           d.gender || "",
+    religion:         d.religion || "",
+    birthPlace:       d.birthPlace || d.birth_place || "",
+    bloodGroup:       d.bloodGroup || d.blood_group || "",
+    voterArea:        d.voterArea || d.vuter_area || "",
+    voterNo:          d.voterNo || d.voter_no || "",
+    voterAreaCode:    d.voterAreaCode || d.voter_aria_code || "",
+    slNo:             d.slNo || d.sl_no || "",
+    upazilaCode:      d.upazilaCode || d.upazila_code || "",
+    fatherNID:        d.fatherNID || "",
+    motherNID:        d.motherNID || "",
+    occupation:       d.occupation || "",
+    education:        d.education || "",
     presentAddress:   (typeof d.presentAddress   === "string") ? d.presentAddress   : (d.presentAddress?.addressLine   || d.address || ""),
     permanentAddress: (typeof d.permanentAddress === "string") ? d.permanentAddress : (d.permanentAddress?.addressLine || ""),
-    photo:       d.userIMG || d.photo || d.imageUrl12 || "",
-    dateOfToday: new Date().toISOString().slice(0, 10),
+    photo:            d.userIMG || d.photo || d.imageUrl12 || "",
+    dateOfToday:      new Date().toLocaleDateString("bn-BD", { year: "numeric", month: "long", day: "numeric" }),
   };
 }
 
@@ -318,128 +332,377 @@ async function extractNIDFromPDF(buffer) {
   }
 }
 
-// ──────────────────── TEMPLATE URL BUILDER ─────────────────────
-// আপনার site এ GET params দিয়ে template call করা হবে
-// server_download_v1.php, v2.php, v3.php — এগুলো include করে "pages/server-copys-v1.php" etc.
-// সেই PHP file গুলো $_GET বা $_POST থেকে data নেয় কিনা সেটার উপর নির্ভর করে।
-// যদি না নেয়, নিচে দেখুন ALTERNATIVE — আমরা নিজেই HTML build করবো।
-
-function buildTemplateURL(version, data) {
-  const base = `${CONFIG.SITE_BASE}/pages/server_download_v${version}.php`;
-  const params = new URLSearchParams({
-    nid:              data.nid,
-    pin:              data.pin,
-    nameBangla:       data.nameBangla,
-    nameEnglish:      data.nameEnglish,
-    dob:              data.dob,
-    father:           data.father,
-    mother:           data.mother,
-    spouse:           data.spouse,
-    gender:           data.gender,
-    religion:         data.religion,
-    birthPlace:       data.birthPlace,
-    bloodGroup:       data.bloodGroup,
-    voterArea:        data.voterArea,
-    voterNo:          data.voterNo,
-    occupation:       data.occupation,
-    education:        data.education,
-    presentAddress:   data.presentAddress,
-    permanentAddress: data.permanentAddress,
-    photo:            data.photo,
-    dateOfToday:      data.dateOfToday,
-    bot:              "1",  // bot=1 flag — PHP side এ দরকার হলে check করতে পারবেন
-  });
-  return `${base}?${params.toString()}`;
+// ─────────────────────── HTML BUILDER ──────────────────────────
+// Bangla number converter
+function toBn(str) {
+  if (!str) return "";
+  const map = { "0":"০","1":"১","2":"২","3":"৩","4":"৪","5":"৫","6":"৬","7":"৭","8":"৮","9":"৯" };
+  return String(str).replace(/[0-9]/g, d => map[d]);
 }
 
-// ─────────────── ALTERNATIVE: নিজেই HTML fetch করা ────────────
-// আপনার existing API generate URL (sv.php যেটা nid-bn.php call করে)
-const API_GENERATE_URL = "https://auto.onlinebd.top/bot/nid-bn.php";
-
-function fixRelativePaths(html, base) {
-  const patterns = [
-    [/(src\s*=\s*["'])(assets\/)/gi,   `$1${base}/assets/`],
-    [/(href\s*=\s*["'])(assets\/)/gi,  `$1${base}/assets/`],
-    [/(src\s*=\s*["'])(photo\/)/gi,    `$1${base}/photo/`],
-    [/(url\s*\(\s*["']?)(assets\/)/gi, `$1${base}/assets/`],
-    [/(url\s*\(\s*["']?)(photo\/)/gi,  `$1${base}/photo/`],
-  ];
-  for (const [r, rep] of patterns) html = html.replace(r, rep);
-  return html;
+// Format date YYYY-MM-DD → বাংলায়
+function formatDateBn(dob) {
+  if (!dob) return "";
+  const months = ["","জানুয়ারি","ফেব্রুয়ারি","মার্চ","এপ্রিল","মে","জুন","জুলাই","আগস্ট","সেপ্টেম্বর","অক্টোবর","নভেম্বর","ডিসেম্বর"];
+  const parts = dob.split("-");
+  if (parts.length !== 3) return toBn(dob);
+  return `${toBn(parts[2])} ${months[parseInt(parts[1])]} ${toBn(parts[0])}`;
 }
 
-async function embedFonts(html) {
-  const fonts = [
-    { url: "https://auto.onlinebd.top/fonts/Bangla.ttf", family: "Bangla" },
-    { url: "https://auto.onlinebd.top/fonts/Arial.ttf",  family: "Arial"  },
-  ];
-  let css = "";
-  for (const f of fonts) {
-    try {
-      const res = await axios.get(f.url, { responseType: "arraybuffer", timeout: 15000 });
-      const b64 = Buffer.from(res.data).toString("base64");
-      css += `@font-face{font-family:'${f.family}';src:url('data:font/truetype;base64,${b64}') format('truetype');}\n`;
-      console.log(`✅ Font embedded: ${f.family}`);
-    } catch { console.log(`⚠️ Font skip: ${f.family}`); }
+// Row helper — skip empty
+function row(label, value) {
+  if (!value || value === "N/A" || value === "undefined") return "";
+  return `<tr><td><strong>${label}</strong></td><td>${value}</td></tr>`;
+}
+
+// ── SHARED CSS (Solaiman Lipi via Google Fonts proxy / maateen) ──
+const SHARED_CSS = `
+  @import url('https://fonts.maateen.me/solaiman-lipi/font.css');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Solaiman Lipi', sans-serif;
+    background: #f4f4f9;
+    width: 210mm;
+    margin: auto;
+    padding: 0;
   }
-  const override = css + `*{font-family:Bangla,Arial,sans-serif!important;}`;
-  return html.includes("</head>")
-    ? html.replace("</head>", `<style>${override}</style>\n</head>`)
-    : `<style>${override}</style>\n` + html;
-}
-
-// ── আপনার site এর template URL থেকে সরাসরি HTML fetch ──
-async function fetchHTMLFromSite(version, data) {
-  const url = buildTemplateURL(version, data);
-  console.log(`📄 Fetching template V${version}: ${url.slice(0, 100)}...`);
-  try {
-    const res = await axios.get(url, { timeout: 30000 });
-    return fixRelativePaths(res.data, CONFIG.SITE_BASE);
-  } catch (err) {
-    console.error(`Template fetch failed (V${version}):`, err.message);
-    // Fallback: auto.onlinebd.top/bot/nid-bn.php দিয়ে generate
-    return await fetchHTMLFromGenerateAPI(data);
+  @page { size: 210mm 297mm; margin: 0; }
+  .container { background: white; padding: 0 20px; }
+  .header { padding: 10px 0 0; }
+  .header_top { text-align: center; border-bottom: 1px solid #c2c2c2; padding-bottom: 8px; }
+  .logo { width: 60px; margin-bottom: 4px; }
+  p.text { line-height: 10px; font-size: 14px; margin: 4px 0; }
+  .user_photo { text-align: center; }
+  img#user_img {
+    width: 110px; height: 120px; margin: 10px 0 20px;
+    border-radius: 10px;
+    box-shadow: rgba(0,0,0,0.35) 0px 2px 10px;
+    object-fit: cover;
   }
+  .sub_container { padding: 0 40px; }
+  .section { margin-bottom: 1px; }
+  .section-title {
+    font-size: 17px; font-weight: bold;
+    background: #bbe6ed; color: black; padding: 5px;
+  }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  colgroup col:first-child { width: 30%; }
+  colgroup col:last-child  { width: 70%; }
+  table, th, td { border: 1px solid #EAEAEA; }
+  th, td { padding: 8px; text-align: left; font-size: 13px; }
+  table td:first-child { font-weight: bold; color: #000; }
+  .footer_text { margin-top: 10px; padding-bottom: 10px; }
+  .footer_text p { color: red; text-align: center; font-size: 13px; margin-bottom: 6px; }
+  #footer_english {
+    text-align: center; margin-top: -4px; font-size: 13px;
+    font-weight: bold; font-family: Arial; letter-spacing: -0.2px; color: #000;
+  }
+  @media print {
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { background: white; }
+    .section { page-break-inside: avoid; }
+  }
+`;
+
+// ── V1 — Standard ──
+function buildHTMLv1(d) {
+  const photoSrc = d.photo
+    ? `<img src="${d.photo}" alt="ছবি" id="user_img" onerror="this.style.display='none'">`
+    : "";
+
+  return `<!DOCTYPE html><html lang="bn"><head>
+  <meta charset="UTF-8">
+  <title>v1_${d.nid}</title>
+  <style>${SHARED_CSS}</style>
+</head><body>
+<div class="container">
+  <div class="header">
+    <div class="header_top">
+      <img src="https://dakhila-ldtax-gov-bd.rf.gd/assets/server/img/logo-server-copy.svg" alt="" class="logo">
+      <p class="text">বাংলাদেশ নির্বাচন কমিশন</p>
+      <p class="text">নির্বাচন কমিশন সচিবালয়</p>
+      <p class="text">জাতীয় পরিচয় নিবন্ধন অনুবিভাগ</p>
+    </div>
+    <div class="user_photo">${photoSrc}</div>
+  </div>
+  <div class="sub_container">
+    <div class="section">
+      <div class="section-title">জাতীয় পরিচিতি তথ্য</div>
+      <div class="section-content">
+        <table><colgroup><col><col></colgroup>
+          ${row("জাতীয় পরিচয় পত্র নম্বর", toBn(d.nid))}
+          ${row("পিন নম্বর", toBn(d.pin))}
+          ${row("পূর্ববর্তী এনআইডি নম্বর", toBn(d.oldNid))}
+          ${row("ভোটার নম্বর", toBn(d.voterNo))}
+          ${row("উপজেলা কোড", toBn(d.upazilaCode))}
+          ${row("ভোটার এলাকা", d.voterArea)}
+          ${row("ভোটার এরিয়া কোড", toBn(d.voterAreaCode))}
+          ${row("ভোটার সিরিয়াল নম্বর", toBn(d.slNo))}
+          ${row("পিতার এনআইডি", toBn(d.fatherNID))}
+          ${row("মাতার এনআইডি", toBn(d.motherNID))}
+        </table>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">ব্যক্তিগত তথ্য</div>
+      <div class="section-content">
+        <table><colgroup><col><col></colgroup>
+          ${row("নাম (বাংলা)", d.nameBangla)}
+          ${row("নাম (ইংরেজি)", d.nameEnglish)}
+          ${row("জন্ম তারিখ", formatDateBn(d.dob))}
+          ${row("পিতার নাম", d.father)}
+          ${row("মাতার নাম", d.mother)}
+          ${row("স্বামী/স্ত্রীর নাম", d.spouse)}
+        </table>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">অন্যান্য তথ্য</div>
+      <div class="section-content">
+        <table><colgroup><col><col></colgroup>
+          ${row("রক্তের গ্রুপ", d.bloodGroup)}
+          ${row("পেশা", d.occupation)}
+          ${row("শিক্ষাগত যোগ্যতা", d.education)}
+          ${row("লিঙ্গ", d.gender)}
+          ${row("ধর্ম", d.religion)}
+          ${row("জন্মবার", d.birthDay)}
+          ${row("বয়স", d.age ? toBn(d.age) : "")}
+          ${row("জন্মস্থান", d.birthPlace)}
+        </table>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">বর্তমান ঠিকানা</div>
+      <div class="section-content">
+        <table><colgroup><col></colgroup>
+          <tr><td>${d.presentAddress || "—"}</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">স্থায়ী ঠিকানা</div>
+      <div class="section-content">
+        <table><colgroup><col></colgroup>
+          <tr><td>${d.permanentAddress || "—"}</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="footer_text">
+      <p>উপরে প্রদর্শিত তথ্যসমূহ জাতীয় পরিচয়পত্র সংশ্লিষ্ট, ভোটার তালিকার সাথে সরাসরি সম্পর্কযুক্ত নয়।</p>
+      <p id="footer_english">This is Software Generated Report From Bangladesh Election Commission, Signature &amp; Seal Aren't Required.</p>
+    </div>
+  </div>
+</div>
+</body></html>`;
 }
 
-// Fallback — পুরনো generate API
-async function fetchHTMLFromGenerateAPI(data) {
-  const params = new URLSearchParams();
-  // sv.php → nid-bn.php এর field mapping
-  Object.entries({
-    nid:              data.nid,
-    pin:              data.pin,
-    nameBn:           data.nameBangla,
-    nameEn:           data.nameEnglish,
-    dateOfBirth:      data.dob,
-    fatherName:       data.father,
-    motherName:       data.mother,
-    spouse:           data.spouse,
-    gender:           data.gender,
-    religion:         data.religion,
-    birthPlace:       data.birthPlace,
-    bloodGroup:       data.bloodGroup,
-    voterArea:        data.voterArea,
-    voterNo:          data.voterNo,
-    occupation:       data.occupation,
-    education:        data.education,
-    Presentaddress:   data.presentAddress,
-    Permanentaddress: data.permanentAddress,
-    imageUrl12:       data.photo,
-    dateOfToday:      data.dateOfToday,
-  }).forEach(([k, v]) => params.append(k, v || ""));
+// ── V2 — Blue header style ──
+function buildHTMLv2(d) {
+  const photoSrc = d.photo
+    ? `<img src="${d.photo}" alt="ছবি" id="user_img" onerror="this.style.display='none'">`
+    : "";
 
-  const res = await axios.post(API_GENERATE_URL, params.toString(), {
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    timeout: 60000,
-  });
-  return fixRelativePaths(res.data, "https://auto.onlinebd.top/bot");
+  const v2css = SHARED_CSS + `
+    .section-title { background: #1a3c6e; color: white; }
+    .header_top { background: #1a3c6e; color: white; padding: 10px; border-radius: 4px; }
+    .header_top p.text { color: white; }
+    table td:first-child { color: #1a3c6e; }
+  `;
+
+  return `<!DOCTYPE html><html lang="bn"><head>
+  <meta charset="UTF-8">
+  <title>v2_${d.nid}</title>
+  <style>${v2css}</style>
+</head><body>
+<div class="container">
+  <div class="header">
+    <div class="header_top">
+      <p class="text" style="font-size:16px;font-weight:bold">বাংলাদেশ নির্বাচন কমিশন</p>
+      <p class="text">নির্বাচন কমিশন সচিবালয়</p>
+      <p class="text">জাতীয় পরিচয় নিবন্ধন অনুবিভাগ</p>
+    </div>
+    <div class="user_photo">${photoSrc}</div>
+  </div>
+  <div class="sub_container">
+    <div class="section">
+      <div class="section-title">জাতীয় পরিচিতি তথ্য</div>
+      <div class="section-content">
+        <table><colgroup><col><col></colgroup>
+          ${row("জাতীয় পরিচয় পত্র নম্বর", toBn(d.nid))}
+          ${row("পিন নম্বর", toBn(d.pin))}
+          ${row("পূর্ববর্তী এনআইডি নম্বর", toBn(d.oldNid))}
+          ${row("ভোটার নম্বর", toBn(d.voterNo))}
+          ${row("উপজেলা কোড", toBn(d.upazilaCode))}
+          ${row("ভোটার এলাকা", d.voterArea)}
+          ${row("ভোটার এরিয়া কোড", toBn(d.voterAreaCode))}
+          ${row("ভোটার সিরিয়াল নম্বর", toBn(d.slNo))}
+          ${row("পিতার এনআইডি", toBn(d.fatherNID))}
+          ${row("মাতার এনআইডি", toBn(d.motherNID))}
+        </table>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">ব্যক্তিগত তথ্য</div>
+      <div class="section-content">
+        <table><colgroup><col><col></colgroup>
+          ${row("নাম (বাংলা)", d.nameBangla)}
+          ${row("নাম (ইংরেজি)", d.nameEnglish)}
+          ${row("জন্ম তারিখ", formatDateBn(d.dob))}
+          ${row("পিতার নাম", d.father)}
+          ${row("মাতার নাম", d.mother)}
+          ${row("স্বামী/স্ত্রীর নাম", d.spouse)}
+        </table>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">অন্যান্য তথ্য</div>
+      <div class="section-content">
+        <table><colgroup><col><col></colgroup>
+          ${row("রক্তের গ্রুপ", d.bloodGroup)}
+          ${row("পেশা", d.occupation)}
+          ${row("শিক্ষাগত যোগ্যতা", d.education)}
+          ${row("লিঙ্গ", d.gender)}
+          ${row("ধর্ম", d.religion)}
+          ${row("জন্মবার", d.birthDay)}
+          ${row("বয়স", d.age ? toBn(d.age) : "")}
+          ${row("জন্মস্থান", d.birthPlace)}
+        </table>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">বর্তমান ঠিকানা</div>
+      <div class="section-content">
+        <table><colgroup><col></colgroup>
+          <tr><td>${d.presentAddress || "—"}</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">স্থায়ী ঠিকানা</div>
+      <div class="section-content">
+        <table><colgroup><col></colgroup>
+          <tr><td>${d.permanentAddress || "—"}</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="footer_text">
+      <p>উপরে প্রদর্শিত তথ্যসমূহ জাতীয় পরিচয়পত্র সংশ্লিষ্ট, ভোটার তালিকার সাথে সরাসরি সম্পর্কযুক্ত নয়।</p>
+      <p id="footer_english">This is Software Generated Report From Bangladesh Election Commission, Signature &amp; Seal Aren't Required.</p>
+    </div>
+  </div>
+</div>
+</body></html>`;
+}
+
+// ── V3 — Green accent style ──
+function buildHTMLv3(d) {
+  const photoSrc = d.photo
+    ? `<img src="${d.photo}" alt="ছবি" id="user_img" onerror="this.style.display='none'">`
+    : "";
+
+  const v3css = SHARED_CSS + `
+    .section-title { background: #2d7a4f; color: white; }
+    .header_top { border-bottom: 3px solid #2d7a4f; }
+    table td:first-child { color: #2d7a4f; }
+    table tr:nth-child(even) { background: #f0fff4; }
+  `;
+
+  return `<!DOCTYPE html><html lang="bn"><head>
+  <meta charset="UTF-8">
+  <title>v3_${d.nid}</title>
+  <style>${v3css}</style>
+</head><body>
+<div class="container">
+  <div class="header">
+    <div class="header_top">
+      <img src="https://dakhila-ldtax-gov-bd.rf.gd/assets/server/img/logo-server-copy.svg" alt="" class="logo">
+      <p class="text">বাংলাদেশ নির্বাচন কমিশন</p>
+      <p class="text">নির্বাচন কমিশন সচিবালয়</p>
+      <p class="text">জাতীয় পরিচয় নিবন্ধন অনুবিভাগ</p>
+    </div>
+    <div class="user_photo">${photoSrc}</div>
+  </div>
+  <div class="sub_container">
+    <div class="section">
+      <div class="section-title">জাতীয় পরিচিতি তথ্য</div>
+      <div class="section-content">
+        <table><colgroup><col><col></colgroup>
+          ${row("জাতীয় পরিচয় পত্র নম্বর", toBn(d.nid))}
+          ${row("পিন নম্বর", toBn(d.pin))}
+          ${row("পূর্ববর্তী এনআইডি নম্বর", toBn(d.oldNid))}
+          ${row("ভোটার নম্বর", toBn(d.voterNo))}
+          ${row("উপজেলা কোড", toBn(d.upazilaCode))}
+          ${row("ভোটার এলাকা", d.voterArea)}
+          ${row("ভোটার এরিয়া কোড", toBn(d.voterAreaCode))}
+          ${row("ভোটার সিরিয়াল নম্বর", toBn(d.slNo))}
+          ${row("পিতার এনআইডি", toBn(d.fatherNID))}
+          ${row("মাতার এনআইডি", toBn(d.motherNID))}
+        </table>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">ব্যক্তিগত তথ্য</div>
+      <div class="section-content">
+        <table><colgroup><col><col></colgroup>
+          ${row("নাম (বাংলা)", d.nameBangla)}
+          ${row("নাম (ইংরেজি)", d.nameEnglish)}
+          ${row("জন্ম তারিখ", formatDateBn(d.dob))}
+          ${row("পিতার নাম", d.father)}
+          ${row("মাতার নাম", d.mother)}
+          ${row("স্বামী/স্ত্রীর নাম", d.spouse)}
+        </table>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">অন্যান্য তথ্য</div>
+      <div class="section-content">
+        <table><colgroup><col><col></colgroup>
+          ${row("রক্তের গ্রুপ", d.bloodGroup)}
+          ${row("পেশা", d.occupation)}
+          ${row("শিক্ষাগত যোগ্যতা", d.education)}
+          ${row("লিঙ্গ", d.gender)}
+          ${row("ধর্ম", d.religion)}
+          ${row("জন্মবার", d.birthDay)}
+          ${row("বয়স", d.age ? toBn(d.age) : "")}
+          ${row("জন্মস্থান", d.birthPlace)}
+        </table>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">বর্তমান ঠিকানা</div>
+      <div class="section-content">
+        <table><colgroup><col></colgroup>
+          <tr><td>${d.presentAddress || "—"}</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">স্থায়ী ঠিকানা</div>
+      <div class="section-content">
+        <table><colgroup><col></colgroup>
+          <tr><td>${d.permanentAddress || "—"}</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="footer_text">
+      <p>উপরে প্রদর্শিত তথ্যসমূহ জাতীয় পরিচয়পত্র সংশ্লিষ্ট, ভোটার তালিকার সাথে সরাসরি সম্পর্কযুক্ত নয়।</p>
+      <p id="footer_english">This is Software Generated Report From Bangladesh Election Commission, Signature &amp; Seal Aren't Required.</p>
+    </div>
+  </div>
+</div>
+</body></html>`;
+}
+
+function buildHTML(version, data) {
+  if (version === 1) return buildHTMLv1(data);
+  if (version === 2) return buildHTMLv2(data);
+  if (version === 3) return buildHTMLv3(data);
+  return buildHTMLv1(data);
 }
 
 // ─────────────────── HTML → PDF CONVERTER ──────────────────────
 async function convertHTMLtoPDF(html) {
   if (!CONFIG.PDF_API_URL) throw new Error("PDF_API_URL set করা নেই!");
-  html = await embedFonts(html);
   const res = await axios.post(`${CONFIG.PDF_API_URL}/pdf`, {
     secret: CONFIG.PDF_API_SECRET,
     html,
@@ -449,29 +712,29 @@ async function convertHTMLtoPDF(html) {
 }
 
 // ─────────────────── PROCESS: PDF → Card → Send ────────────────
-async function processNIDCard(from, data, version) {
+async function processNIDCard(from, data, version, msgId) {
+  // ✅ markRead এখন processing শুরুর আগেই — blue tick দ্রুত দেখাবে
+  if (msgId) markRead(msgId);
+
   await sendText(from, `⏳ Version ${version} কার্ড তৈরি হচ্ছে...`);
 
-  // 1. Template HTML fetch
-  const html = await fetchHTMLFromSite(version, data);
-
-  // 2. HTML → PDF
+  const html      = buildHTML(version, data);
   const pdfBuffer = await convertHTMLtoPDF(html);
 
-  // 3. Stats
   recordStat(from);
   backupData();
 
-  // 4. WhatsApp এ পাঠানো
   const filename = `nid-v${version}-${data.nid || Date.now()}.pdf`;
   const price    = getSettings().cardPrice || 0;
+  const defVer   = getUserDefaultVersion(from);
   const caption  = [
     `✅ NID Card (Version ${version}) তৈরি হয়েছে!`,
     ``,
     `👤 নাম: ${data.nameBangla || data.nameEnglish}`,
-    `🆔 NID: ${data.nid}`,
-    `🎂 DOB: ${data.dob}`,
+    `🆔 NID: ${toBn(data.nid)}`,
+    `🎂 DOB: ${formatDateBn(data.dob)}`,
     price > 0 ? `💰 Remaining: ${getUserBalance(from)} টাকা` : "",
+    defVer > 0 ? `⚙️ Default Version: V${defVer}` : "💡 .setversion v1 দিলে পরে auto তৈরি হবে",
   ].filter(Boolean).join("\n");
 
   const mediaId = await uploadMedia(pdfBuffer, filename, "application/pdf");
@@ -485,52 +748,90 @@ async function processNIDCard(from, data, version) {
 async function handleIncoming(msg, contact) {
   const from  = msg.from;
   const msgId = msg.id;
-  markRead(msgId);
 
   // ── TEXT MESSAGE ──
   if (msg.type === "text") {
-    const text = msg.text.body.trim().toLowerCase();
+    const rawText = msg.text.body.trim();
+    const text    = rawText.toLowerCase();
+
+    // ── .setversion command ──
+    // Usage: .setversion v1 / .setversion v2 / .setversion v3 / .setversion off
+    if (text.startsWith(".setversion") || text.startsWith("setversion")) {
+      markRead(msgId);
+      if (!isAllowed(from)) return sendText(from, "❌ আপনি authorized নন।");
+      const parts = text.split(/\s+/);
+      const arg   = parts[1] || "";
+      if (arg === "v1" || arg === "1") {
+        setUserDefaultVersion(from, 1);
+        return sendText(from, "✅ Default version *V1* সেট হয়েছে!\nএখন থেকে PDF পাঠালে automatically V1 কার্ড তৈরি হবে।\nChange করতে: *.setversion v2* বা *.setversion off*");
+      } else if (arg === "v2" || arg === "2") {
+        setUserDefaultVersion(from, 2);
+        return sendText(from, "✅ Default version *V2* সেট হয়েছে!\nChange করতে: *.setversion v1* বা *.setversion off*");
+      } else if (arg === "v3" || arg === "3") {
+        setUserDefaultVersion(from, 3);
+        return sendText(from, "✅ Default version *V3* সেট হয়েছে!\nChange করতে: *.setversion v1* বা *.setversion off*");
+      } else if (arg === "off" || arg === "0") {
+        setUserDefaultVersion(from, 0);
+        return sendText(from, "✅ Default version *বন্ধ* হয়েছে!\nএখন প্রতিবার PDF পাঠালে V1/V2/V3 choice দেখাবে।");
+      } else {
+        const cur = getUserDefaultVersion(from);
+        return sendText(from,
+          `⚙️ *Version সেটিং*\n\nআপনার current default: ${cur > 0 ? `V${cur}` : "বন্ধ (প্রতিবার choice দেখায়)"}\n\nChange করুন:\n• *.setversion v1* → সবসময় V1\n• *.setversion v2* → সবসময় V2\n• *.setversion v3* → সবসময় V3\n• *.setversion off* → প্রতিবার choice দেখাবে`
+        );
+      }
+    }
 
     // ping / status
     if (text === ".ping" || text === "ping") {
+      markRead(msgId);
       return sendText(from, "🟢 Pong! Bot সচল আছে।");
     }
+
     if (text === ".status" || text === "status") {
+      markRead(msgId);
       if (!isAllowed(from)) return sendText(from, "❌ আপনি authorized নন।");
-      const bal   = getUserBalance(from);
-      const price = getSettings().cardPrice || 0;
-      return sendText(from, `✅ Authorized\n💰 Balance: ${bal} টাকা\n💳 Card Price: ${price} টাকা`);
+      const bal    = getUserBalance(from);
+      const price  = getSettings().cardPrice || 0;
+      const defVer = getUserDefaultVersion(from);
+      return sendText(from,
+        `✅ Authorized\n💰 Balance: ${bal} টাকা\n💳 Card Price: ${price} টাকা\n⚙️ Default Version: ${defVer > 0 ? `V${defVer}` : "বন্ধ"}\n\nVersion change: *.setversion v1/v2/v3/off*`
+      );
     }
 
-    // V1 / V2 / V3 text fallback (যদি interactive buttons কাজ না করে)
-    if (["v1", "1", "ভার্সন ১", "version 1"].includes(text)) {
-      const pending = getPending(from);
-      if (!pending) return sendText(from, "❌ কোনো PDF পাওয়া যায়নি। আগে PDF পাঠান।");
-      if (!isAllowed(from)) return sendText(from, "❌ আপনি authorized নন।");
-      const price = getSettings().cardPrice || 0;
-      if (price > 0 && !deductBalance(from)) return sendText(from, `❌ Balance কম! ${price} টাকা দরকার।`);
-      return processNIDCard(from, pending.data, 1).catch(e => sendText(from, `❌ Error: ${e.message}`));
-    }
-    if (["v2", "2", "ভার্সন ২", "version 2"].includes(text)) {
-      const pending = getPending(from);
-      if (!pending) return sendText(from, "❌ কোনো PDF পাওয়া যায়নি। আগে PDF পাঠান।");
-      if (!isAllowed(from)) return sendText(from, "❌ আপনি authorized নন।");
-      const price = getSettings().cardPrice || 0;
-      if (price > 0 && !deductBalance(from)) return sendText(from, `❌ Balance কম! ${price} টাকা দরকার।`);
-      return processNIDCard(from, pending.data, 2).catch(e => sendText(from, `❌ Error: ${e.message}`));
-    }
-    if (["v3", "3", "ভার্সন ৩", "version 3"].includes(text)) {
-      const pending = getPending(from);
-      if (!pending) return sendText(from, "❌ কোনো PDF পাওয়া যায়নি। আগে PDF পাঠান।");
-      if (!isAllowed(from)) return sendText(from, "❌ আপনি authorized নন।");
-      const price = getSettings().cardPrice || 0;
-      if (price > 0 && !deductBalance(from)) return sendText(from, `❌ Balance কম! ${price} টাকা দরকার।`);
-      return processNIDCard(from, pending.data, 3).catch(e => sendText(from, `❌ Error: ${e.message}`));
+    // help
+    if (text === ".help" || text === "help") {
+      markRead(msgId);
+      return sendText(from,
+        `📋 *Commands*\n\n` +
+        `📄 NID PDF পাঠান → কার্ড তৈরি\n` +
+        `⚙️ *.setversion v1* → সবসময় V1\n` +
+        `⚙️ *.setversion v2* → সবসময় V2\n` +
+        `⚙️ *.setversion v3* → সবসময় V3\n` +
+        `⚙️ *.setversion off* → প্রতিবার choice\n` +
+        `📊 *.status* → balance ও settings\n` +
+        `🏓 *.ping* → bot check`
+      );
     }
 
+    // V1/V2/V3 text fallback
+    const vMap = {
+      "v1": 1, "1": 1, "ভার্সন ১": 1, "version 1": 1,
+      "v2": 2, "2": 2, "ভার্সন ২": 2, "version 2": 2,
+      "v3": 3, "3": 3, "ভার্সন ৩": 3, "version 3": 3,
+    };
+    if (vMap[text] !== undefined) {
+      const pending = getPending(from);
+      if (!pending) { markRead(msgId); return sendText(from, "❌ কোনো PDF পাওয়া যায়নি। আগে PDF পাঠান।"); }
+      if (!isAllowed(from)) { markRead(msgId); return sendText(from, "❌ আপনি authorized নন।"); }
+      const price = getSettings().cardPrice || 0;
+      if (price > 0 && !deductBalance(from)) { markRead(msgId); return sendText(from, `❌ Balance কম! ${price} টাকা দরকার।`); }
+      return processNIDCard(from, pending.data, vMap[text], msgId)
+        .catch(e => sendText(from, `❌ Error: ${e.message}`));
+    }
+
+    markRead(msgId);
     return sendText(from,
-      "📄 NID Card বানাতে আপনার NID PDF এই chat এ পাঠান।\n\n" +
-      "Commands:\n.ping - bot check\n.status - balance check"
+      "📄 NID Card বানাতে আপনার NID PDF পাঠান।\n\n.help — সব commands দেখুন"
     );
   }
 
@@ -539,25 +840,30 @@ async function handleIncoming(msg, contact) {
     const buttonId = msg.interactive.button_reply.id;
     const pending  = getPending(from);
 
-    if (!pending) return sendText(from, "❌ Expired! আবার PDF পাঠান।");
-    if (!isAllowed(from)) return sendText(from, "❌ আপনি authorized নন।");
+    if (!pending) { markRead(msgId); return sendText(from, "❌ Expired! আবার PDF পাঠান।"); }
+    if (!isAllowed(from)) { markRead(msgId); return sendText(from, "❌ আপনি authorized নন।"); }
 
     const price = getSettings().cardPrice || 0;
     if (price > 0 && !deductBalance(from)) {
+      markRead(msgId);
       return sendText(from, `❌ Balance কম! ${price} টাকা দরকার।\nBalance: ${getUserBalance(from)} টাকা`);
     }
 
     const versionMap = { choose_v1: 1, choose_v2: 2, choose_v3: 3 };
     const version    = versionMap[buttonId];
-    if (!version) return sendText(from, "❌ অজানা choice। আবার চেষ্টা করুন।");
+    if (!version) { markRead(msgId); return sendText(from, "❌ অজানা choice।"); }
 
-    return processNIDCard(from, pending.data, version)
+    return processNIDCard(from, pending.data, version, msgId)
       .catch(e => sendText(from, `❌ Error: ${e.message}`));
   }
 
   // ── DOCUMENT (PDF) ──
   if (msg.type === "document") {
     const doc = msg.document;
+
+    // ✅ markRead প্রথমেই — blue tick দ্রুত
+    markRead(msgId);
+
     if (!doc.mime_type?.includes("pdf")) {
       return sendText(from, "❌ শুধু PDF file পাঠাতে হবে।");
     }
@@ -565,7 +871,9 @@ async function handleIncoming(msg, contact) {
       return sendText(from, "❌ আপনি authorized নন। Admin এর সাথে যোগাযোগ করুন।");
     }
 
-    await sendText(from, "⏳ PDF প্রক্রিয়াকরণ চলছে... একটু অপেক্ষা করুন।");
+    const defVersion = getUserDefaultVersion(from);
+
+    await sendText(from, "⏳ PDF প্রক্রিয়াকরণ চলছে...");
 
     try {
       const { buffer } = await downloadMedia(doc.id);
@@ -575,12 +883,23 @@ async function handleIncoming(msg, contact) {
         throw new Error("NID তথ্য extract করা সম্ভব হয়নি।");
       }
 
-      // Pending এ রাখো, version choice চাও
+      // Default version আছে → সরাসরি process
+      if (defVersion > 0) {
+        const price = getSettings().cardPrice || 0;
+        if (price > 0 && !deductBalance(from)) {
+          return sendText(from, `❌ Balance কম! ${price} টাকা দরকার।`);
+        }
+        setPending(from, data); // pending এ রাখো (clear হবে process এর পরে)
+        return processNIDCard(from, data, defVersion, null)
+          .catch(e => sendText(from, `❌ Error: ${e.message}`));
+      }
+
+      // Default নেই → version choice দেখাও
       setPending(from, data);
-      await sendVersionChoice(from, data.nameBangla || data.nameEnglish || "অজানা", data.nid || "N/A");
+      await sendVersionChoice(from, data.nameBangla || data.nameEnglish || "অজানা", data.nid || "N/A", 0);
     } catch (err) {
       console.error("PDF Process error:", err.message);
-      await sendText(from, `❌ Error: ${err.message}\nআবার চেষ্টা করুন বা admin কে জানান।`);
+      await sendText(from, `❌ Error: ${err.message}\nআবার চেষ্টা করুন।`);
     }
   }
 }
@@ -590,7 +909,6 @@ const app = express();
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
-// Webhook verify
 app.get("/webhook", (req, res) => {
   const mode      = req.query["hub.mode"];
   const token     = req.query["hub.verify_token"];
@@ -602,9 +920,8 @@ app.get("/webhook", (req, res) => {
   return res.sendStatus(403);
 });
 
-// Webhook receiver
 app.post("/webhook", async (req, res) => {
-  res.sendStatus(200);
+  res.sendStatus(200); // WhatsApp কে সাথে সাথে 200 দাও
   try {
     const entry    = req.body.entry?.[0];
     const change   = entry?.changes?.[0]?.value;
@@ -616,14 +933,11 @@ app.post("/webhook", async (req, res) => {
   } catch (e) { console.error("Webhook error:", e.message); }
 });
 
-app.get("/", (req, res) => res.send("✅ NID Bot (DB-Free) is running"));
-
-app.get("/privacy", (req, res) => {
-  res.send(`<html><body style="font-family:sans-serif;max-width:700px;margin:40px auto;padding:20px;">
-    <h1>Privacy Policy</h1>
-    <p>NID Service Bot collects only the NID PDF you send, processes it to generate a card, and does not store or share your data.</p>
-  </body></html>`);
-});
+app.get("/",        (_, res) => res.send("✅ NID Bot is running"));
+app.get("/privacy", (_, res) => res.send(`<html><body style="font-family:sans-serif;max-width:700px;margin:40px auto;padding:20px;">
+  <h1>Privacy Policy</h1>
+  <p>NID Service Bot processes NID PDFs temporarily and does not store personal data.</p>
+</body></html>`));
 
 // ──────────────────── ADMIN PANEL ───────────────────────────────
 const adminSessions = new Set();
@@ -636,12 +950,12 @@ function adminAuth(req, res, next) {
   res.redirect("/admin/login");
 }
 
-app.get("/admin/login", (req, res) => {
+app.get("/admin/login", (_, res) => {
   res.send(`<html><body style="font-family:sans-serif;max-width:400px;margin:80px auto;padding:30px;background:#f5f5f5;border-radius:8px;">
     <h2>🔐 Admin Login</h2>
     <form method="POST" action="/admin/login">
       <input name="password" type="password" placeholder="Password" style="width:100%;padding:10px;margin:10px 0;" required/>
-      <button type="submit" style="width:100%;padding:10px;background:#0078d4;color:#fff;border:0;border-radius:4px;cursor:pointer;">Login</button>
+      <button style="width:100%;padding:10px;background:#0078d4;color:#fff;border:0;border-radius:4px;cursor:pointer;">Login</button>
     </form>
   </body></html>`);
 });
@@ -669,12 +983,14 @@ app.get("/admin", adminAuth, (req, res) => {
   const settings = getSettings();
 
   const rows = users.map(u => {
-    const s = stats[normalizeNumber(u.number)] || { count: 0, lastUsed: "—" };
+    const s   = stats[normalizeNumber(u.number)] || { count: 0, lastUsed: "—" };
+    const def = u.defaultVersion > 0 ? `V${u.defaultVersion}` : "—";
     return `<tr>
       <td>${u.number}</td>
       <td>${u.name || "—"}</td>
       <td style="color:${(u.balance||0) < 0 ? 'red':'green'};font-weight:bold">${u.balance||0} ৳</td>
       <td>${u.active !== false ? "✅":"❌"}</td>
+      <td style="font-weight:bold;color:#0078d4">${def}</td>
       <td>${s.count}</td>
       <td style="font-size:11px">${s.lastUsed||"—"}</td>
       <td>
@@ -683,6 +999,16 @@ app.get("/admin", adminAuth, (req, res) => {
           <input name="amount" placeholder="টাকা" type="number" style="width:65px;padding:3px"/>
           <button name="type" value="add"    style="background:#28a745;color:#fff;border:0;padding:4px 8px;border-radius:3px;cursor:pointer">+Add</button>
           <button name="type" value="remove" style="background:#dc3545;color:#fff;border:0;padding:4px 8px;border-radius:3px;cursor:pointer">-Remove</button>
+        </form>
+        <form method="POST" action="/admin/setversion" style="display:inline;white-space:nowrap">
+          <input type="hidden" name="number" value="${u.number}"/>
+          <select name="version" style="padding:3px">
+            <option value="0" ${!u.defaultVersion||u.defaultVersion===0?'selected':''}>Auto</option>
+            <option value="1" ${u.defaultVersion===1?'selected':''}>V1</option>
+            <option value="2" ${u.defaultVersion===2?'selected':''}>V2</option>
+            <option value="3" ${u.defaultVersion===3?'selected':''}>V3</option>
+          </select>
+          <button style="padding:4px 8px;cursor:pointer">Set</button>
         </form>
         <form method="POST" action="/admin/toggle" style="display:inline">
           <input type="hidden" name="number" value="${u.number}"/>
@@ -701,17 +1027,18 @@ app.get("/admin", adminAuth, (req, res) => {
     .join("") || "<li>কেউ নেই</li>";
 
   res.send(`<html><head><style>
-    body{font-family:sans-serif;max-width:1200px;margin:30px auto;padding:20px}
+    body{font-family:sans-serif;max-width:1300px;margin:30px auto;padding:20px}
     table{width:100%;border-collapse:collapse;margin:15px 0}
-    th,td{border:1px solid #ddd;padding:8px;text-align:left;font-size:13px}
+    th,td{border:1px solid #ddd;padding:7px;text-align:left;font-size:12px}
     th{background:#0078d4;color:#fff}
     .card{background:#f9f9f9;padding:15px;margin:10px 0;border-radius:6px;border:1px solid #ddd}
+    tr:hover{background:#f5f5f5}
   </style></head><body>
-    <h1>📊 NID Bot Admin Panel (DB-Free)</h1>
+    <h1>📊 NID Bot Admin Panel</h1>
     <div style="text-align:right"><a href="/admin/logout">Logout</a></div>
 
     <div class="card">
-      <h3>⚙️ Settings — Card Price</h3>
+      <h3>⚙️ Settings</h3>
       <form method="POST" action="/admin/settings">
         Card Price (৳): <input name="cardPrice" value="${settings.cardPrice||0}" style="width:80px" type="number"/>
         <button>Save</button>
@@ -721,28 +1048,33 @@ app.get("/admin", adminAuth, (req, res) => {
     <div class="card">
       <h3>🕐 Pending Version Choice (${pendingChoices.size})</h3>
       <ul>${pendingList}</ul>
-      <small>এরা PDF পাঠিয়েছেন, এখনো V1/V2/V3 choose করেননি।</small>
     </div>
 
     <div class="card">
       <h3>➕ Add User</h3>
       <form method="POST" action="/admin/add">
-        <input name="number" placeholder="WhatsApp Number (880...)" required/>
-        <input name="name" placeholder="Name"/>
-        <input name="balance" placeholder="Balance" value="0" type="number" style="width:100px"/>
+        <input name="number" placeholder="880XXXXXXXXXX" required/>
+        <input name="name"   placeholder="Name"/>
+        <input name="balance" placeholder="Balance" value="0" type="number" style="width:80px"/>
+        <select name="defaultVersion">
+          <option value="0">Auto (choice দেখাবে)</option>
+          <option value="1">V1 Default</option>
+          <option value="2">V2 Default</option>
+          <option value="3">V3 Default</option>
+        </select>
         <button>Add</button>
       </form>
     </div>
 
     <div class="card">
       <form method="POST" action="/admin/backup" style="display:inline">
-        <button style="background:#17a2b8;color:#fff;border:0;padding:8px 16px;border-radius:4px;cursor:pointer">☁️ MongoDB Backup Now</button>
+        <button style="background:#17a2b8;color:#fff;border:0;padding:8px 16px;border-radius:4px;cursor:pointer">☁️ MongoDB Backup</button>
       </form>
     </div>
 
     <h3>👥 Users (${users.length})</h3>
     <table>
-      <tr><th>Number</th><th>Name</th><th>Balance</th><th>Active</th><th>Cards</th><th>Last Used</th><th>Actions</th></tr>
+      <tr><th>Number</th><th>Name</th><th>Balance</th><th>Active</th><th>Default Ver</th><th>Cards</th><th>Last Used</th><th>Actions</th></tr>
       ${rows}
     </table>
   </body></html>`);
@@ -750,10 +1082,15 @@ app.get("/admin", adminAuth, (req, res) => {
 
 app.post("/admin/add", adminAuth, (req, res) => {
   const users = getUsers();
-  const { number, name, balance } = req.body;
+  const { number, name, balance, defaultVersion } = req.body;
   const n = normalizeNumber(number);
   if (!users.find(u => normalizeNumber(u.number) === n)) {
-    users.push({ number: n, name: name||"", balance: parseFloat(balance)||0, active: true });
+    users.push({
+      number: n, name: name||"",
+      balance: parseFloat(balance)||0,
+      active: true,
+      defaultVersion: parseInt(defaultVersion)||0,
+    });
     saveUsers(users); backupData();
   }
   res.redirect("/admin");
@@ -766,6 +1103,17 @@ app.post("/admin/recharge", adminAuth, (req, res) => {
   const amt = parseFloat(amount) || 0;
   if (i !== -1 && amt > 0) {
     users[i].balance = (users[i].balance || 0) + (type === "remove" ? -amt : amt);
+    saveUsers(users); backupData();
+  }
+  res.redirect("/admin");
+});
+
+// Admin থেকে default version set
+app.post("/admin/setversion", adminAuth, (req, res) => {
+  const users = getUsers();
+  const i = users.findIndex(u => normalizeNumber(u.number) === normalizeNumber(req.body.number));
+  if (i !== -1) {
+    users[i].defaultVersion = parseInt(req.body.version) || 0;
     saveUsers(users); backupData();
   }
   res.redirect("/admin");
@@ -801,15 +1149,12 @@ function cleanupOldFiles() {
     const tenMin = 10 * 60 * 1000;
     fs.readdirSync(CONFIG.STORAGE_DIR).forEach(f => {
       const fp = path.join(CONFIG.STORAGE_DIR, f);
-      if (Date.now() - fs.statSync(fp).mtimeMs > tenMin) {
-        fs.unlinkSync(fp);
-        console.log(`🗑️ Cleaned: ${f}`);
-      }
+      if (Date.now() - fs.statSync(fp).mtimeMs > tenMin) fs.unlinkSync(fp);
     });
   } catch {}
 }
 
-// Pending choices expire করা (15 মিনিট পর)
+// Pending expire — 15 মিনিট
 setInterval(() => {
   const limit = 15 * 60 * 1000;
   for (const [num, p] of pendingChoices.entries()) {
@@ -827,8 +1172,7 @@ setInterval(() => {
   app.listen(CONFIG.PORT, () => {
     console.log(`🚀 NID Bot running on port ${CONFIG.PORT}`);
     console.log(`📡 Webhook: ${CONFIG.BASE_URL}/webhook`);
-    console.log(`🔐 Admin: ${CONFIG.BASE_URL}/admin`);
-    console.log(`🌐 Site Base: ${CONFIG.SITE_BASE}`);
+    console.log(`🔐 Admin:   ${CONFIG.BASE_URL}/admin`);
   });
 
   // Self-ping (Render sleep prevention)
