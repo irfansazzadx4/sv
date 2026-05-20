@@ -61,13 +61,6 @@ function normalizeNumber(num) {
   return n;
 }
 
-// Convert numbers to Bengali format
-function toBn(num) {
-  if (!num) return "";
-  const bn = ["০", "১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯"];
-  return String(num).replace(/[0-9]/g, d => bn[d]);
-}
-
 function getUser(number) {
   return getUsers().find(x => normalizeNumber(x.number) === normalizeNumber(number));
 }
@@ -120,6 +113,16 @@ function recordStat(number) {
   stats[key].count++;
   stats[key].lastUsed = new Date().toISOString();
   saveStats(stats);
+}
+
+function toBn(num) {
+  if (num === undefined || num === null) return "";
+  const digits = String(num);
+  const bnDigits = {
+    '0': '০', '1': '১', '2': '২', '3': '৩', '4': '৪',
+    '5': '৫', '6': '৬', '7': '৭', '8': '৮', '9': '৯'
+  };
+  return digits.replace(/[0-9]/g, d => bnDigits[d]);
 }
 
 // ─────────────────────── PENDING STATE ────────────────────────
@@ -288,21 +291,6 @@ async function downloadMedia(mediaId) {
 
 // ─────────────────────── NID EXTRACTION ────────────────────────
 
-// Fetch PDF data using API_EXTRACT_URL
-async function extractNIDFromPDF(buffer) {
-  try {
-    const form = new FormData();
-    form.append("file", buffer, "document.pdf");
-    const res = await axios.post(CONFIG.API_EXTRACT_URL, form, {
-      headers: form.getHeaders(),
-    });
-    return mapAPIData(res.data);
-  } catch (error) {
-    console.error("API Extraction Error:", error.message);
-    throw new Error("API থেকে Data Extract করতে সমস্যা হয়েছে।");
-  }
-}
-
 function mapAPIData(d) {
   return {
     // Main Info
@@ -456,6 +444,29 @@ function mapAPIData(d) {
         day: "numeric"
       })
   };
+}
+
+async function extractNIDFromPDF(pdfBuffer) {
+  const form = new FormData();
+  form.append("pdf", pdfBuffer, { filename: "nid.pdf", contentType: "application/pdf" });
+  const res = await axios.post(CONFIG.API_EXTRACT_URL, form, {
+    headers: { ...form.getHeaders() },
+    timeout: 60000
+  });
+  const rawData = res.data;
+  let extracted = {};
+  if (typeof rawData === "string") {
+    try {
+      extracted = JSON.parse(rawData);
+    } catch {
+      extracted = { nid: "", nameBangla: "", nameEnglish: "", dob: "" };
+    }
+  } else if (typeof rawData === "object") {
+    extracted = rawData;
+  } else {
+    extracted = {};
+  }
+  return mapAPIData(extracted);
 }
 
 function buildHTMLv1(d) {
@@ -1189,7 +1200,6 @@ function buildHTMLv3(d) {
 </html>`;
 }
 
-
 function buildHTML(version, data) {
   if (version === 1) return buildHTMLv1(data);
   if (version === 2) return buildHTMLv2(data);
@@ -1231,7 +1241,7 @@ async function processNIDCard(from, data, version, msgId) {
     `🆔 NID: ${toBn(data.nid)}`,
     `🎂 DOB: ${data.dob}`,
     price > 0 ? `💰 Remaining: ${getUserBalance(from)} টাকা` : "",
-    defVer > 0 ? `⚙️ Default Version: V${defVer}` : "💡 .setversion v1 দিলে পরে auto তৈরি হবে",
+    defVer > 0 ? `⚙️ Default Version: V${defVer} : 💡 .setversion v1 দিলে পরে auto তৈরি হবে` : "",
   ].filter(Boolean).join("\n");
 
   const mediaId = await uploadMedia(pdfBuffer, filename, "application/pdf");
@@ -1471,14 +1481,14 @@ app.get("/admin", adminAuth, (req, res) => {
     const s   = stats[normalizeNumber(u.number)] || { count: 0, lastUsed: "—" };
     const def = u.defaultVersion > 0 ? `V${u.defaultVersion}` : "—";
     return `<tr>
-      <td>${u.number}</td>
-      <td>${u.name || "—"}</td>
+       <td>${u.number}</td>
+       <td>${u.name || "—"}</td>
       <td style="color:${(u.balance||0) < 0 ? 'red':'green'};font-weight:bold">${u.balance||0} ৳</td>
-      <td>${u.active !== false ? "✅":"❌"}</td>
+       <td>${u.active !== false ? "✅":"❌"}</td>
       <td style="font-weight:bold;color:#0078d4">${def}</td>
-      <td>${s.count}</td>
+       <td>${s.count}</td>
       <td style="font-size:11px">${s.lastUsed||"—"}</td>
-      <td>
+       <td>
         <form method="POST" action="/admin/recharge" style="display:inline;white-space:nowrap">
           <input type="hidden" name="number" value="${u.number}"/>
           <input name="amount" placeholder="টাকা" type="number" style="width:65px;padding:3px" required/>
@@ -1503,8 +1513,8 @@ app.get("/admin", adminAuth, (req, res) => {
           <input type="hidden" name="number" value="${u.number}"/>
           <button onclick="return confirm('Delete?')" style="background:#dc3545;color:#fff;border:0;padding:4px 8px;border-radius:3px;cursor:pointer">🗑️</button>
         </form>
-      </td>
-    </tr>`;
+       </td>
+     </tr>`;
   }).join("");
 
   const pendingList = [...pendingChoices.entries()]
