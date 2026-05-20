@@ -280,357 +280,168 @@ async function downloadMedia(mediaId) {
 }
 
 // ─────────────────────── NID EXTRACTION ────────────────────────
-/**
- * NID Service Bot — WhatsApp Cloud API
- * ✅ Self-built HTML (no PHP dependency)
- * ✅ Default version per user (.setversion v1/v2/v3)
- * ✅ Fast reply (markRead AFTER processing)
- * ✅ PDF upload → API extract → HTML build → PDF → WhatsApp
- */
 
-const express  = require("express");
-const axios    = require("axios");
-const fs       = require("fs");
-const path     = require("path");
-const crypto   = require("crypto");
-const FormData = require("form-data");
-
-// ─────────────────────────── CONFIG ───────────────────────────
-const CONFIG = {
-  PORT: process.env.PORT || 3000,
-  ADMIN_PASS: process.env.ADMIN_PASS || "admin123",
-
-  WA_TOKEN:        process.env.WHATSAPP_TOKEN,
-  WA_PHONE_ID:     process.env.WHATSAPP_PHONE_ID,
-  WA_VERIFY_TOKEN: process.env.WHATSAPP_VERIFY_TOKEN || "myVerifyToken123",
-  WA_API_VERSION:  "v21.0",
-
-  API_EXTRACT_URL: "https://auto.onlinebd.top/Signtonid_api_one.php",
-  SITE_BASE:       "https://dakhila-ldtax-gov-bd.rf.gd",
-
-  PDF_API_URL:    process.env.PDF_API_URL,
-  PDF_API_SECRET: process.env.PDF_API_SECRET,
-
-  BASE_URL:    process.env.RENDER_EXTERNAL_URL || "https://nidservicebd.onrender.com",
-  STORAGE_DIR: path.join(__dirname, "storage"),
-  DATA_DIR:    path.join(__dirname, "data"),
-
-  MONGO_URI: process.env.MONGO_URI,
-};
-
-if (!fs.existsSync(CONFIG.STORAGE_DIR)) fs.mkdirSync(CONFIG.STORAGE_DIR, { recursive: true });
-if (!fs.existsSync(CONFIG.DATA_DIR))    fs.mkdirSync(CONFIG.DATA_DIR,    { recursive: true });
-
-const USERS_FILE    = path.join(CONFIG.DATA_DIR, "users.json");
-const STATS_FILE    = path.join(CONFIG.DATA_DIR, "stats.json");
-const SETTINGS_FILE = path.join(CONFIG.DATA_DIR, "settings.json");
-
-// ─────────────────────────── HELPERS ───────────────────────────
-const loadJSON = (f, def) => { try { return JSON.parse(fs.readFileSync(f, "utf8")); } catch { return def; } };
-const saveJSON = (f, d)   => fs.writeFileSync(f, JSON.stringify(d, null, 2));
-
-const getUsers    = () => loadJSON(USERS_FILE,    []);
-const saveUsers   = (u) => saveJSON(USERS_FILE,   u);
-const getStats    = () => loadJSON(STATS_FILE,    {});
-const saveStats   = (s) => saveJSON(STATS_FILE,   s);
-const getSettings = () => loadJSON(SETTINGS_FILE, { cardPrice: 0 });
-const saveSettings= (s) => saveJSON(SETTINGS_FILE, s);
-
-function normalizeNumber(num) {
-  let n = String(num).replace(/\D/g, "");
-  if (n.startsWith("0")) n = "880" + n.slice(1);
-  if (!n.startsWith("880") && n.length === 10) n = "880" + n;
-  return n;
-}
-
-function getUser(number) {
-  return getUsers().find(x => normalizeNumber(x.number) === normalizeNumber(number));
-}
-
-function isAllowed(number) {
-  const users = getUsers();
-  if (users.length === 0) return false;
-  const u = users.find(x => normalizeNumber(x.number) === normalizeNumber(number));
-  return u && u.active !== false;
-}
-
-function getUserBalance(number) {
-  const u = getUser(number);
-  return u ? (u.balance || 0) : 0;
-}
-
-// ── Default Version per user ──
-function getUserDefaultVersion(number) {
-  const u = getUser(number);
-  return u ? (u.defaultVersion || 0) : 0; // 0 = no default, ask every time
-}
-
-function setUserDefaultVersion(number, version) {
-  const users = getUsers();
-  const idx = users.findIndex(x => normalizeNumber(x.number) === normalizeNumber(number));
-  if (idx !== -1) {
-    users[idx].defaultVersion = version;
-    saveUsers(users);
-    return true;
-  }
-  return false;
-}
-
-function deductBalance(number) {
-  const users = getUsers();
-  const price = getSettings().cardPrice || 0;
-  if (price === 0) return true;
-  const idx = users.findIndex(x => normalizeNumber(x.number) === normalizeNumber(number));
-  if (idx === -1) return false;
-  if ((users[idx].balance || 0) < price) return false;
-  users[idx].balance = (users[idx].balance || 0) - price;
-  saveUsers(users);
-  return true;
-}
-
-function recordStat(number) {
-  const stats = getStats();
-  const key   = normalizeNumber(number);
-  if (!stats[key]) stats[key] = { count: 0, lastUsed: null };
-  stats[key].count++;
-  stats[key].lastUsed = new Date().toISOString();
-  saveStats(stats);
-}
-
-// ─────────────────────── PENDING STATE ────────────────────────
-const pendingChoices = new Map();
-
-function setPending(number, extractedData) {
-  pendingChoices.set(normalizeNumber(number), {
-    data:      extractedData,
-    timestamp: Date.now(),
-  });
-}
-
-function getPending(number) {
-  return pendingChoices.get(normalizeNumber(number)) || null;
-}
-
-function clearPending(number) {
-  pendingChoices.delete(normalizeNumber(number));
-}
-
-// ─────────────────────────── MONGODB ───────────────────────────
-let mongoClient = null;
-
-async function getMongoClient() {
-  if (mongoClient) return mongoClient;
-  if (!CONFIG.MONGO_URI) return null;
-  try {
-    const { MongoClient } = require("mongodb");
-    mongoClient = new MongoClient(CONFIG.MONGO_URI);
-    await mongoClient.connect();
-    console.log("✅ MongoDB connected");
-    return mongoClient;
-  } catch (e) {
-    console.error("MongoDB connect error:", e.message);
-    return null;
-  }
-}
-
-async function saveToMongo(collection, key, data) {
-  try {
-    const client = await getMongoClient();
-    if (!client) return;
-    await client.db("nidbot").collection(collection)
-      .replaceOne({ _id: key }, { _id: key, data }, { upsert: true });
-  } catch (e) { console.error("MongoDB save error:", e.message); }
-}
-
-async function loadFromMongo(collection, key) {
-  try {
-    const client = await getMongoClient();
-    if (!client) return null;
-    const doc = await client.db("nidbot").collection(collection).findOne({ _id: key });
-    return doc ? doc.data : null;
-  } catch (e) { return null; }
-}
-
-async function backupData() {
-  try {
-    await Promise.all([
-      saveToMongo("backups", "users",    getUsers()),
-      saveToMongo("backups", "stats",    getStats()),
-      saveToMongo("backups", "settings", getSettings()),
-    ]);
-  } catch (e) { console.error("Backup error:", e.message); }
-}
-
-async function restoreData() {
-  try {
-    const [users, stats, settings] = await Promise.all([
-      loadFromMongo("backups", "users"),
-      loadFromMongo("backups", "stats"),
-      loadFromMongo("backups", "settings"),
-    ]);
-    if (users    && !fs.existsSync(USERS_FILE))    saveUsers(users);
-    if (stats    && !fs.existsSync(STATS_FILE))    saveStats(stats);
-    if (settings && !fs.existsSync(SETTINGS_FILE)) saveSettings(settings);
-    if (users || stats || settings) console.log("✅ Data restored from MongoDB");
-    else console.log("ℹ️ No MongoDB data — starting fresh");
-  } catch (e) { console.error("Restore error:", e.message); }
-}
-
-// ─────────────────────── WHATSAPP API ──────────────────────────
-const WA_BASE    = () => `https://graph.facebook.com/${CONFIG.WA_API_VERSION}/${CONFIG.WA_PHONE_ID}`;
-const WA_HEADERS = () => ({ Authorization: `Bearer ${CONFIG.WA_TOKEN}`, "Content-Type": "application/json" });
-
-async function sendText(to, body) {
-  try {
-    await axios.post(`${WA_BASE()}/messages`, {
-      messaging_product: "whatsapp", to, type: "text", text: { body }
-    }, { headers: WA_HEADERS() });
-  } catch (e) { console.error("sendText error:", e.response?.data || e.message); }
-}
-
-async function markRead(messageId) {
-  try {
-    await axios.post(`${WA_BASE()}/messages`, {
-      messaging_product: "whatsapp", status: "read", message_id: messageId
-    }, { headers: WA_HEADERS() });
-  } catch {}
-}
-
-async function sendVersionChoice(to, nidName, nidNumber, currentDefault) {
-  const defaultInfo = currentDefault > 0
-    ? `\n\n⚙️ আপনার default: V${currentDefault} (শুধু V${currentDefault} পেতে কিছু না লিখলেও হবে)`
-    : `\n\n💡 Tip: *.setversion v1* দিলে পরে automatically V1 তৈরি হবে`;
-
-  try {
-    await axios.post(`${WA_BASE()}/messages`, {
-      messaging_product: "whatsapp",
-      to,
-      type: "interactive",
-      interactive: {
-        type: "button",
-        body: {
-          text: `✅ NID তথ্য পাওয়া গেছে!\n\n👤 নাম: ${nidName}\n🆔 NID: ${nidNumber}\n\nকোন ভার্সনের কার্ড বানাবেন?${defaultInfo}`
-        },
-        action: {
-          buttons: [
-            { type: "reply", reply: { id: "choose_v1", title: "📄 Version 1" } },
-            { type: "reply", reply: { id: "choose_v2", title: "📄 Version 2" } },
-            { type: "reply", reply: { id: "choose_v3", title: "📄 Version 3" } },
-          ]
-        }
-      }
-    }, { headers: WA_HEADERS() });
-  } catch (e) {
-    console.error("sendVersionChoice error:", e.response?.data || e.message);
-    await sendText(to,
-      `✅ NID তথ্য পাওয়া গেছে!\n👤 নাম: ${nidName}\n🆔 NID: ${nidNumber}\n\nকোন ভার্সন চান? টাইপ করুন: *v1*, *v2*, অথবা *v3*${defaultInfo}`
-    );
-  }
-}
-
-async function uploadMedia(buffer, filename, mimetype) {
-  const form = new FormData();
-  form.append("messaging_product", "whatsapp");
-  form.append("file", buffer, { filename, contentType: mimetype });
-  form.append("type", mimetype);
-  const res = await axios.post(`${WA_BASE()}/media`, form, {
-    headers: { ...form.getHeaders(), Authorization: `Bearer ${CONFIG.WA_TOKEN}` },
-    maxContentLength: Infinity, maxBodyLength: Infinity,
-  });
-  return res.data.id;
-}
-
-async function sendDocument(to, mediaId, filename, caption) {
-  try {
-    await axios.post(`${WA_BASE()}/messages`, {
-      messaging_product: "whatsapp", to, type: "document",
-      document: { id: mediaId, filename, caption }
-    }, { headers: WA_HEADERS() });
-  } catch (e) { console.error("sendDocument error:", e.response?.data || e.message); }
-}
-
-async function downloadMedia(mediaId) {
-  const meta = await axios.get(
-    `https://graph.facebook.com/${CONFIG.WA_API_VERSION}/${mediaId}`,
-    { headers: { Authorization: `Bearer ${CONFIG.WA_TOKEN}` } }
-  );
-  const fileRes = await axios.get(meta.data.url, {
-    headers: { Authorization: `Bearer ${CONFIG.WA_TOKEN}` },
-    responseType: "arraybuffer",
-  });
-  return { buffer: Buffer.from(fileRes.data), mimetype: meta.data.mime_type };
-}
-
-// ─────────────────────── NID EXTRACTION ────────────────────────
 function mapAPIData(d) {
-  // Present Address এবং Permanent Address থেকে addressLine এক্সট্রাক্ট করা (স্ট্রিং বা অবজেক্ট দুটির জন্যই সেইফ হ্যান্ডলিং)
-  const presentAddrStr = d.presentAddress ? (typeof d.presentAddress === "string" ? d.presentAddress : (d.presentAddress.addressLine || d.presentAddress.address || "")) : "";
-  const permanentAddrStr = d.permanentAddress ? (typeof d.permanentAddress === "string" ? d.permanentAddress : (d.permanentAddress.addressLine || d.permanentAddress.address || "")) : "";
-
   return {
-    nid:              d.nationalId || d.nid || d.NID || d.national_id || d.nationalIdNumber || "",
-    pin:              d.pin || d.pinNo || d.pin_no || d.pinNumber || "",
-    oldNid:           d.formNo || d.form_no || d.oldNid || d.old_nid || "",
-    nameBangla:       d.nameBn || d.nameBangla || d.name_bn || d.nameBanglaHtml || "",
-    nameEnglish:      d.nameEn || d.nameEnglish || d.name_en || d.nameEnglishHtml || "",
-    dob:              d.dateOfBirth || d.dob || d.birthDate || "",
-    birthDay:         d.birthDay || "",
-    age:              d.age || "",
-    father:           d.father || d.fatherName || d.father_name || "",
-    mother:           d.mother || d.motherName || d.mother_name || "",
-    spouse:           d.spouse || d.spouseName || d.spouse_name || "",
-    gender:           d.gender || "",
-    religion:         d.religion || d.faith || "",
-    birthPlace:       d.birthPlace || d.birth_place || d.district || "",
-    bloodGroup:       d.bloodGroup || d.blood_group || "",
-    voterArea:        d.voterArea || d.vuter_area || d.voter_area || d.voterAreaName || "",
-    voterNo:          d.voterNo || d.voter_no || d.voterNumber || "",
-    voterAreaCode:    d.voterAreaCode || d.voter_aria_code || d.voter_area_code || "",
-    slNo:             d.slNo || d.sl_no || d.serialNo || d.serial_no || "",
-    upazilaCode:      d.upazilaCode || d.upazila_code || "",
-    fatherNID:        d.nidFather || d.fatherNID || d.father_nid || "",
-    motherNID:        d.nidMother || d.motherNID || d.mother_nid || "",
-    occupation:       d.occupation || d.profession || "",
-    education:        d.education || "",
-    presentAddress:   presentAddrStr,
-    permanentAddress: permanentAddrStr,
-    photo:            d.photo || d.userIMG || d.imageUrl12 || d.image || d.photoUrl || "",
-    dateOfToday:      new Date().toLocaleDateString("bn-BD", { year: "numeric", month: "long", day: "numeric" }),
+    // Main Info
+    nid: d.nationalId || d.nid || d.NID || d.national_id || "",
+    pin: d.pin || "",
+
+    // Form Number
+    oldNid:
+      d.formNo ||
+      d.form_number ||
+      d.oldNid ||
+      d.old_nid ||
+      "",
+
+    // Name
+    nameBangla:
+      d.nameBn ||
+      d.nameBangla ||
+      d.name_bn ||
+      "",
+
+    nameEnglish:
+      d.nameEn ||
+      d.nameEnglish ||
+      d.name_en ||
+      "",
+
+    // DOB
+    dob:
+      d.dateOfBirth ||
+      d.dob ||
+      "",
+
+    // Parents
+    father:
+      d.father ||
+      d.fatherName ||
+      d.father_name ||
+      "",
+
+    mother:
+      d.mother ||
+      d.motherName ||
+      d.mother_name ||
+      "",
+
+    spouse:
+      d.spouse ||
+      d.spouseName ||
+      "N/A",
+
+    // Others
+    gender:
+      d.gender ||
+      "",
+
+    religion:
+      d.religion ||
+      "",
+
+    birthPlace:
+      d.birthPlace ||
+      d.birth_place ||
+      "",
+
+    bloodGroup:
+      d.bloodGroup ||
+      d.blood_group ||
+      "N/A",
+
+    occupation:
+      d.occupation ||
+      "N/A",
+
+    education:
+      d.education ||
+      "N/A",
+
+    // Voter Info
+    voterArea:
+      d.voterArea ||
+      d.voter_area ||
+      d.voterAreaName ||
+      "",
+
+    voterNo:
+      d.voterNo ||
+      d.voter_no ||
+      "",
+
+    voterAreaCode:
+      d.voterAreaCode ||
+      d.voter_area_code ||
+      "",
+
+    slNo:
+      d.slNo ||
+      d.sl_no ||
+      "",
+
+    upazilaCode:
+      d.upazilaCode ||
+      d.upazila_code ||
+      "",
+
+    // Parent NID
+    fatherNID:
+      d.nidFather ||
+      d.fatherNID ||
+      d.father_nid ||
+      "N/A",
+
+    motherNID:
+      d.nidMother ||
+      d.motherNID ||
+      d.mother_nid ||
+      "N/A",
+
+    // Address (IMPORTANT FIX)
+    presentAddress:
+      typeof d.presentAddress === "string"
+        ? d.presentAddress
+        : (
+            d.presentAddress?.addressLine ||
+            d.presentAddress?.address ||
+            ""
+          ),
+
+    permanentAddress:
+      typeof d.permanentAddress === "string"
+        ? d.permanentAddress
+        : (
+            d.permanentAddress?.addressLine ||
+            d.permanentAddress?.address ||
+            ""
+          ),
+
+    // Image
+    photo:
+      d.photo ||
+      d.userIMG ||
+      d.imageUrl12 ||
+      "",
+
+    // Date
+    dateOfToday:
+      d.dateOfToday ||
+      new Date().toLocaleDateString("bn-BD", {
+        year: "numeric",
+        month: "long",
+        day: "numeric"
+      })
   };
 }
 
-async function extractNIDFromPDF(buffer) {
-  const form = new FormData();
-  form.append("pdf", buffer, { filename: "nid.pdf", contentType: "application/pdf" });
-  try {
-    const res = await axios.post(CONFIG.API_EXTRACT_URL, form, {
-      headers: form.getHeaders(),
-      maxContentLength: Infinity, maxBodyLength: Infinity, timeout: 60000,
-    });
-    console.log("📦 API Response:", JSON.stringify(res.data).slice(0, 300));
-    const raw    = res.data?.data ? res.data.data : res.data;
-    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
-    return mapAPIData(parsed);
-  } catch (err) {
-    console.error("❌ Extract API failed:", err.response?.status, JSON.stringify(err.response?.data), err.message);
-    throw new Error("NID extract করতে পারিনি: " + (err.response?.data?.message || err.message));
-  }
-}
-
-// ─────────────────────── HTML BUILDER ──────────────────────────
-function toBn(str) {
-  if (!str) return "";
-  const map = { "0":"০","1":"১","2":"২","3":"৩","4":"৪","5":"৫","6":"৬","7":"৭","8":"৮","9":"৯" };
-  return String(str).replace(/[0-9]/g, d => map[d]);
-}
-
-// ── V1 — signtoserverv1 php exact recreation ──
 function buildHTMLv1(d) {
   const presentAddr  = (d.presentAddress  || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
   const permanentAddr = (d.permanentAddress || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
   const qrData = encodeURIComponent(`${d.nameEnglish} ${d.nid} ${d.dob}`);
 
-  return `<!DOCTYPE html>
+  return <!DOCTYPE html>
 <html lang="bn">
 <head>
     <meta charset="utf-8">
@@ -733,10 +544,629 @@ function buildHTMLv1(d) {
     </style>
 </head>
 <body style="text-align: center;">
-    <div class="no-print" style="padding: 10px; font-weight: bold;">[Version 1 Generated Template]</div>
+
+    <div class="no-print" style="padding: 10px; font-weight: bold; background-color: #fff3cd; border: 1px solid #ffc107; margin-bottom: 20px;">
+    </div>
+    
+    <div class="printable-container">
+        <img class="crane" src="https://dakhila-ldtax-gov-bd.rf.gd/assets/images/server_unofficialV1.jpg" height="1000px" width="750px">
+
+        <div style="position: absolute; left: 30%; top: 8%; width: auto; font-size: 16px; color: rgb(255 224 0);"><b>National Identity Registration Wing (NIDW)</b></div>
+        <div style="position: absolute; left: 37%; top: 11%; width: auto; font-size: 14px; color: rgb(255, 47, 161);"><b>Select Your Search Category</b></div>
+        <div style="position: absolute; left: 45%; top: 12.8%; width: auto; font-size: 12px; color: rgb(8, 121, 4);">Search By NID / Voter No.</div>
+        <div style="position: absolute; left: 45%; top: 14.3%; width: auto; font-size: 12px; color: rgb(7, 119, 184);">Search By Form No.</div>
+        <div style="position: absolute; left: 30%; top: 16.9%; width: auto; font-size: 12px; color: rgb(252, 0, 0);"><b>NID or Voter No*</b></div>
+        <div style="position: absolute; left: 45%; top: 16.9%; width: auto; font-size: 12px; color: rgb(143, 143, 143);">${d.nid}</div>
+        <div style="position: absolute; left: 62.9%; top: 17.1%; width: auto; font-size: 11px; color: rgb(255 255 255);">Submit</div>
+        <div style="position: absolute; left: 89%; top: 11.55%; width: auto; font-size: 11px; color: #fff;">Home</div>
+
+        <div style="position: absolute; left: 37%; top: 27%; font-size: 16px;"><b>জাতীয় পরিচিতি তথ্য</b></div>
+        <div style="position: absolute; left: 37%; top: 29.7%; font-size: 13px;">জাতীয় পরিচয় পত্র নম্বর</div>
+        <div id="nid_no" style="position: absolute; left: 55%; top: 29.7%; font-size: 14px;">${d.nid}</div>
+
+        <div style="position: absolute; left: 37%; top: 32.5%; font-size: 13px;">পিন নম্বর</div>
+        <div id="nid_father" style="position: absolute; left: 55%; top: 32.5%; font-size: 14px;">${d.pin}</div>
+
+        <div style="position: absolute; left: 37%; top: 35%; font-size: 13px;">ফরম নাম্বার</div>
+        <div id="from_number" style="position: absolute; left: 55%; top: 35%; font-size: 14px;">${d.oldNid}</div>
+
+        <div style="position: absolute; left: 37%; top: 37.5%; font-size: 14px;">ভোটার নাম্বার</div>
+        <div id="spouse" style="position: absolute; left: 55%; top: 37.5%; font-size: 14px;">${d.voterNo}</div>
+
+        <div style="position: absolute; left: 37%; top: 40.2%; font-size: 14px;">ভোটার এলাকা</div>
+        <div id="voter_area_code" style="position: absolute; left: 55%; top: 40.2%; font-size: 14px;">${d.voterArea}</div>
+
+        <div style="position: absolute; left: 37%; top: 43%; font-size: 16px;"><b>ব্যক্তিগত তথ্য</b></div>
+        <div style="position: absolute; left: 37%; top: 45.6%; font-size: 14px;">নাম (বাংলা)</div>
+        <div id="name_bn" style="position: absolute; left: 55%; top: 45.6%; font-size: 14px;"><b>${d.nameBangla}</b></div>
+
+        <div style="position: absolute; left: 37%; top: 48.5%; font-size: 14px;">নাম (ইংরেজি)</div>
+        <div id="name_en" style="position: absolute; left: 55%; top: 48.5%; font-size: 14px;">${d.nameEnglish}</div>
+
+        <div style="position: absolute; left: 37%; top: 51%; font-size: 14px;">জন্ম তারিখ</div>
+        <div id="dob" style="position: absolute; left: 55%; top: 51%; font-size: 14px;">${d.dob}</div>
+
+        <div style="position: absolute; left: 37%; top: 53.7%; font-size: 14px;">পিতার নাম</div>
+        <div id="fathers_name" style="position: absolute; left: 55%; top: 53.7%; font-size: 14px;">${d.father}</div>
+
+        <div style="position: absolute; left: 37%; top: 56.2%; font-size: 14px;">মাতার নাম</div>
+        <div id="mothers_name" style="position: absolute; left: 55%; top: 56.2%; font-size: 14px;">${d.mother}</div>
+        
+        <div style="position: absolute; left: 37%; top: 59%; font-size: 14px;">স্বামী/স্ত্রীর নাম</div>
+        <div id="spouse_name" style="position: absolute; left: 55%; top: 59%; font-size: 14px;">${d.spouse}</div>
+        
+        <div style="position: absolute; left: 37%; top: 61.8%; font-size: 16px;"><b>অন্যান্য তথ্য</b></div>
+        
+        <div style="position: absolute; left: 37%; top: 65%; font-size: 14px;">লিঙ্গ</div>
+        <div id="gender" style="position: absolute; left: 55%; top: 65%; font-size: 14px;">${d.gender}</div>
+
+        <div style="position: absolute; left: 37%; top: 67.6%; font-size: 14px;">জন্মস্থান</div>
+        <div id="birth_place" style="position: absolute; left: 55%; top: 67.6%; font-size: 14px;">${d.birthPlace}</div>
+
+        <div style="position: absolute; left: 37%; top: 70.3%; font-size: 14px;">রক্তের গ্রুপ</div>
+        <div id="blood_group" style="position: absolute; left: 55%; top: 70.3%; font-size: 14px; color: rgb(252, 0, 0);">${d.bloodGroup}</div>
+
+        <div style="position: absolute; left: 37%; top: 72.8%; font-size: 14px;">পেশা</div>
+        <div id="religion" style="position: absolute; left: 55%; top: 72.8%; font-size: 14px;">${d.occupation}</div>
+
+        <div style="position: absolute; left: 37%; top: 75.8%; font-size: 16px;"><b>বর্তমান ঠিকানা</b></div>
+        <div id="present_address" style="position: absolute; left: 37%; top: 78.3%; width: 48%; font-size: 12px; text-align: left; white-space: normal;">${presentAddr}</div> 
+
+        <div style="position: absolute; left: 37%; top: 84.6%; font-size: 16px;"><b>স্থায়ী ঠিকানা</b></div>
+        <div id="permanent_address" style="position: absolute; left: 37%; top: 87.3%; width: 48%; font-size: 12px; text-align: left; white-space: normal;">${permanentAddr}</div>
+        <div style="position: absolute; top: 94%; width: 100%; font-size: 12px; text-align: center; color: rgb(255, 0, 0);">উপরে প্রদর্শিত তথ্যসমূহ জাতীয় পরিচয়পত্র সংশ্লিষ্ট, ভোটার তালিকার সাথে সরাসরি সম্পর্কযুক্ত নয়।</div>
+        <div style="position: absolute; top: 95.5%; width: 100%; text-align: center; font-size: 12px; color: rgb(3, 3, 3);">This is Software Generated Report From Bangladesh Election Commission, Signature &amp; Seal Aren't Required.</div>
+
+        <div style="position: absolute; left: 16%; top: 25.8%;">
+            <img id="photo" src="${d.photo}" height="140px" width="121px" style="border-radius: 10px;" onerror="this.onerror=null; this.src='https://dakhila-ldtax-gov-bd.rf.gd/assets/media/card/blank.png';" />
+        </div>
+
+        <div style="position: absolute; left: 17.7%; top: 44.2%;">
+            <img id="qr" src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${qrData}" height="95px" width="95px">
+        </div>
+        
+        <div id="name_en2" style="position: absolute; display: flex; font-weight: bold; left: 15.5%; top: 39.8%; height: 32px; width: 130px; font-size: 13px; color: rgb(7, 7, 7); margin: auto; align-items: center;" align="center">
+            <div style="flex: 1;">${d.nameEnglish}</div>
+        </div>
+    </div> 
 </body>
 </html>`;
 }
+
+function buildHTMLv2(d) {
+  const presentAddrFormatted   = (d.presentAddress  || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
+  const permanentAddrFormatted = (d.permanentAddress || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
+  const SITE = "https://dakhila-ldtax-gov-bd.rf.gd";
+
+  return `<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${d.nid} - ${d.nameEnglish}</title>
+    <link href="https://fonts.maateen.me/solaiman-lipi/font.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Solaiman Lipi', 'Solaimanlipi', sans-serif;
+            margin: auto;
+            padding: 0;
+            background-color: #f4f4f9;
+            width: 210mm;
+            height: 297mm;
+        }
+
+        @page {
+            size: 210mm 297mm;
+        }
+
+        .container {
+            margin: auto;
+            background: white;
+            padding-left: 20px;
+            padding-right: 20px;
+        }
+
+        .section {
+            margin-bottom: 1px;
+        }
+
+        .section-title {
+            font-size: 15px!important;
+            font-weight: bold;
+            background: #bbe6ed;
+            color: black;
+            padding: 5px;
+            margin-bottom: 3px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        colgroup col {
+            width: 30%;
+        }
+
+        colgroup col:last-child {
+            width: 70%;
+        }
+
+        table, th, td {
+            border: 1px solid #EAEAEA;
+        }
+
+        th, td {
+            font-size: 13.5px!important;
+            font-family: 'Solaimanlipi', sans-serif;
+            padding: 2px 5px !important;
+            text-align: left;
+        }
+
+        table td:first-child {
+            font-weight: bold;
+            color: #000;
+        }
+
+        strong {
+            font-weight: normal!important;
+        }
+
+        #footer_english {
+            text-align: center;
+            margin-top: -16px;
+            font-size: 13px;
+            font-weight: bold;
+            font-family: Arial;
+            letter-spacing: -0.2px;
+        }
+
+        .sub_container {
+            margin: 5px 0 !important;
+            padding: 0 10px;
+        }
+
+        .header_top {
+            text-align: center;
+            border-bottom: 1px solid #c2c2c2;
+        }
+
+        p.text {
+            line-height: 7px;
+        }
+
+        img#user_img {
+            width: 110px;
+            margin-top: 10px;
+            border-radius: 10px;
+            box-shadow: rgba(0, 0, 0, 0.35) 0px 2px 10px;
+            height: 120px;
+            margin-bottom: 20px;
+        }
+
+        .user_photo {
+            text-align: center;
+        }
+
+        .footer_text {
+            margin-top: 5px !important;
+        }
+
+        @media print {
+            * {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            body {
+                margin: 0;
+                padding: 0;
+                background: white;
+            }
+            .section {
+                page-break-inside: avoid;
+            }
+            .container {
+                margin: 0 !important;
+            }
+        }
+    </style> 
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header_top">
+                <img src="${SITE}/assets/server/img/logo-server-copy.svg" alt="" class="logo" style="width: 50px; margin-top: 10px;" onerror="this.onerror=null; this.src='https://surokkha.gov.bd/favicon.png';">
+                <p class="text_one text" style="font-weight: bold; font-size: 15px;">বাংলাদেশ নির্বাচন কমিশন</p>
+                <p class="text_two text" style="font-size: 13px;">নির্বাচন কমিশন সচিবালয়</p>
+                <p class="text_three text" style="font-size: 12px; margin-bottom: 10px;">জাতীয় পরিচয় নিবন্ধন অনুবিভাগ</p>
+            </div>
+            <div class="user_photo">
+                <img src="${d.photo}" alt="" id="user_img" onerror="this.onerror=null; this.src='https://dakhila-ldtax-gov-bd.rf.gd/assets/media/card/blank.png';">
+            </div>
+        </div>
+        <div class="sub_container">
+            <div class="section">
+                <div class="section-title">জাতীয় পরিচিতি তথ্য</div>
+                <div class="section-content">
+                    <table>
+                        <colgroup>
+                            <col>
+                            <col>
+                        </colgroup>
+                        <tr><td>জাতীয় পরিচয় পত্র নম্বর</td><td><strong>${d.nid || "N/A"}</strong></td></tr>
+                        <tr><td>পিন নম্বর</td><td><strong>${d.pin || "N/A"}</strong></td></tr>
+                        <tr><td>ভোটার নম্বর</td><td><strong>${d.voterNo || "N/A"}</strong></td></tr>
+                        <tr><td>ভোটার এরিয়া কোড</td><td><strong>${d.voterAreaCode || "N/A"}</strong></td></tr>
+                        <tr><td>ভোটার এলাকা</td><td><strong>${d.voterArea || "N/A"}</strong></td></tr>
+                        <tr><td>ফরম নম্বর</td><td><strong>${d.oldNid || "N/A"}</strong></td></tr>
+                        <tr><td>পিতার এনআইডি</td><td><strong>${d.fatherNID || "N/A"}</strong></td></tr>
+                        <tr><td>মাতার এনআইডি</td><td><strong>${d.motherNID || "N/A"}</strong></td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">ব্যক্তিগত তথ্য</div>
+                <div class="section-content">
+                    <table>
+                        <colgroup>
+                            <col>
+                            <col>
+                        </colgroup>
+                        <tr><td>নাম (বাংলা)</td><td><strong>${d.nameBangla || "N/A"}</strong></td></tr>
+                        <tr><td>নাম (ইংরেজি)</td><td><strong>${d.nameEnglish || "N/A"}</strong></td></tr>
+                        <tr><td>জন্ম তারিখ</td><td><strong>${d.dob || "N/A"}</strong></td></tr>
+                        <tr><td>পিতার নাম</td><td><strong>${d.father || "N/A"}</strong></td></tr>
+                        <tr><td>মাতার নাম</td><td><strong>${d.mother || "N/A"}</strong></td></tr>
+                        <tr><td>স্বামী/স্ত্রীর নাম</td><td><strong>${d.spouse || "N/A"}</strong></td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">অন্যান্য তথ্য</div>
+                <div class="section-content">
+                    <table>
+                        <colgroup>
+                            <col>
+                            <col>
+                        </colgroup>
+                        <tr><td>রক্তের গ্রুপ</td><td><strong>${d.bloodGroup || "N/A"}</strong></td></tr>
+                        <tr><td>পেশা</td><td><strong>${d.occupation || "N/A"}</strong></td></tr>
+                        <tr><td>শিক্ষাগত যোগ্যতা</td><td><strong>${d.education || "N/A"}</strong></td></tr>
+                        <tr><td>লিঙ্গ</td><td><strong>${d.gender || "N/A"}</strong></td></tr>
+                        <tr><td>ধর্ম</td><td><strong>${d.religion || "N/A"}</strong></td></tr>
+                        <tr><td>জন্মস্থান</td><td><strong>${d.birthPlace || "N/A"}</strong></td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">বর্তমান ঠিকানা</div>
+                <div class="section-content">
+                    <table>
+                        <colgroup>
+                            <col>
+                        </colgroup>
+                        <tr><td>${presentAddrFormatted || "N/A"}</td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">স্থায়ী ঠিকানা</div>
+                <div class="section-content">
+                    <table>
+                        <colgroup>
+                            <col>
+                        </colgroup>
+                        <tr><td>${permanentAddrFormatted || "N/A"}</td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="footer_text">
+                <p style="text-align: center; color: red; font-size: 13px;">উপরে প্রদর্শিত তথ্যসমূহ জাতীয় পরিচয়পত্র সংশ্লিষ্ট, ভোটার তালিকার সাথে সরাসরি সম্পর্কযুক্ত নয়।</p>
+                <p id="footer_english">This is Software Generated Report From Bangladesh Election Commission, Signature &amp; Seal Aren't Required.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>`;
+}
+
+function buildHTMLv3(d) {
+  const presentAddrFormatted   = (d.presentAddress  || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
+  const permanentAddrFormatted = (d.permanentAddress || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
+  const SITE = "https://dakhila-ldtax-gov-bd.rf.gd";
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${d.nid} - ${d.nameEnglish}</title>
+  <link href="https://fonts.maateen.me/solaiman-lipi/font.css" rel="stylesheet">
+  <style>
+    body {
+        font-family: 'Solaimanlipi', sans-serif;
+        margin: auto;
+        padding: 0;
+        background-color: #f4f4f9;
+        width: 210mm;
+        height: 297mm;
+    }
+
+    @page {
+        size: 210mm 297mm;
+    }
+
+    .container {
+        margin: auto;
+        background: white;
+        padding-left: 20px;
+        padding-right: 20px;
+    }
+
+    .section {
+        background-color: #bbe6ed; 
+    }
+
+    .section-title {
+        font-size: 16px!important;
+        font-family: 'Solaimanlipi', sans-serif;
+        font-weight: bold;
+        background: #bbe6ed;
+        color: black;
+        padding: 5px;
+    }
+    td {
+        font-size: 14.5px!important;
+        font-family: 'Solaimanlipi', sans-serif;
+        padding: 2px 5px !important; 
+    }  
+    strong {
+        font-weight: normal!important;
+    }
+
+    /* sub_container padding */
+    .sub_container {
+        padding-left: 100px;
+        padding-right: 100px;
+    }
+
+    .header_top {
+        text-align: center;
+        border-bottom: 1px solid #c2c2c2;
+    }
+
+    p.text {
+        line-height: 10px;
+    }
+
+    img#user_img {
+        width: 110px;
+        margin-top: 1px;
+        border-radius: 10px;
+        box-shadow: rgba(0, 0, 0, 0.35) 0px 2px 10px;
+        height: 120px;
+    }
+
+    .name {
+        border: 1px solid #eaeaea;
+        padding: 1px;
+        font-size: 15px;
+        font-weight: bold;
+    }
+
+    .user_photo {
+        text-align: center;
+        margin-top: 5px;
+        background-color: #bbe6ed;
+        margin-bottom: 8px;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+
+    colgroup col {
+        width: 30%;
+    }
+
+    colgroup col:last-child {
+        width: 70%;
+    }
+
+    table, th, td {
+        border: 1px solid #EAEAEA;
+    }
+
+    th, td {
+        padding: 6px;
+        text-align: left;
+    }
+
+    table td:first-child {
+        color: #000;
+    }
+
+    #footer_english {
+        text-align: center;
+        margin-top: -16px;
+        font-size: 13px;
+        font-weight: bold;
+        font-family: Arial;
+        letter-spacing: -0.2px;
+    }
+
+    @media print {
+        * {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .container {
+            margin: 0 !important;
+        }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="sub_container">
+      <div class="header">
+        <div class="header_top">
+          <img src="${SITE}/assets/server/img/logo-server-copy.svg" alt="" class="logo" style="width: 50px; margin-top: 10px;" onerror="this.onerror=null; this.src='https://surokkha.gov.bd/favicon.png';"> 
+          <p class="text_one text" style="font-weight: bold; font-size: 15px;">বাংলাদেশ নির্বাচন কমিশন</p>
+          <p class="text_two text" style="font-size: 13px;">নির্বাচন কমিশন সচিবালয়</p>
+          <p class="text_three text" style="font-size: 12px; margin-bottom: 10px;">জাতীয় পরিচয় নিবন্ধন অনুবিভাগ</p>
+        </div>
+        <div class="user_photo">
+          <img src="${d.photo}" alt="" id="user_img" onerror="this.onerror=null; this.src='https://dakhila-ldtax-gov-bd.rf.gd/assets/media/card/blank.png';"> 
+          <div class="name" style="margin-top: 5px;">${d.nameEnglish}</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">জাতীয় পরিচিতি তথ্য</div>
+        <div class="section-content">
+          <table>
+            <colgroup>
+              <col>
+              <col>
+            </colgroup>
+            <tr>
+              <td>জাতীয় পরিচয় পত্র নম্বর</td>
+              <td><strong>${d.nid || "N/A"}</strong></td>
+            </tr>
+            <tr>
+              <td>পিন নম্বর</td>
+              <td><strong>${d.pin || "N/A"}</strong></td>
+            </tr>
+            <tr>
+              <td>পূর্ববর্তী এনআইডি নম্বর</td>
+              <td><strong>${d.oldNid || "N/A"}</strong></td>
+            </tr>
+            <tr>
+              <td>জন্ম নিবন্ধন নম্বর</td>
+              <td><strong>${d.voterNo || "N/A"}</strong></td>
+            </tr>
+            <tr>
+              <td>ভোটার এলাকা</td>
+              <td><strong>${d.voterArea || "N/A"}</strong></td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">ব্যক্তিগত তথ্য</div>
+        <div class="section-content">
+          <table>
+            <colgroup>
+              <col>
+              <col>
+            </colgroup>
+            <tr>
+              <td>নাম (বাংলা)</td>
+              <td><strong>${d.nameBangla || "N/A"}</strong></td>
+            </tr>
+            <tr>
+              <td>নাম (ইংরেজি)</td>
+              <td><strong>${d.nameEnglish || "N/A"}</strong></td>
+            </tr>
+            <tr>
+              <td>জন্ম তারিখ</td>
+              <td><strong>${d.dob || "N/A"}</strong></td>
+            </tr>
+            <tr>
+              <td>পিতার নাম</td>
+              <td><strong>${d.father || "N/A"}</strong></td>
+            </tr>
+            <tr>
+              <td>মাতার নাম</td>
+              <td><strong>${d.mother || "N/A"}</strong></td>
+            </tr>
+            <tr>
+              <td>স্বামী/স্ত্রীর নাম</td>
+              <td><strong>${d.spouse || "N/A"}</strong></td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">অন্যান্য তথ্য</div>
+        <div class="section-content">
+          <table>
+            <colgroup>
+              <col>
+              <col>
+            </colgroup>
+            <tr>
+              <td>পেশা</td>
+              <td><strong>${d.occupation || "N/A"}</strong></td>
+            </tr>
+            <tr>
+              <td>রক্তের গ্রুপ</td>
+              <td><strong>${d.bloodGroup || "N/A"}</strong></td>
+            </tr>
+            <tr>
+              <td>ধর্ম</td>
+              <td><strong>${d.religion || "N/A"}</strong></td>
+            </tr>
+            <tr>
+              <td>লিঙ্গ</td>
+              <td><strong>${d.gender || "N/A"}</strong></td>
+            </tr>
+            <tr>
+              <td>শিক্ষাগত যোগ্যতা</td>
+              <td><strong>${d.education || "N/A"}</strong></td>
+            </tr>
+            <tr>
+              <td>জন্মস্থান</td>
+              <td><strong>${d.birthPlace || "N/A"}</strong></td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">বর্তমান ঠিকানা</div>
+        <div class="section-content">
+          <table>
+            <colgroup>
+              <col>
+            </colgroup>
+            <tr><td>${presentAddrFormatted || "N/A"}</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">স্থায়ী ঠিকানা</div>
+        <div class="section-content">
+          <table>
+            <colgroup>
+              <col>
+            </colgroup>
+            <tr><td>${permanentAddrFormatted || "N/A"}</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="footer_text" style="margin-top: 15px;">
+      <p style="text-align: center; color: red; font-size: 13px;">উপরে প্রদর্শিত তথ্যসমূহ জাতীয় পরিচয়পত্র সংশ্লিষ্ট, ভোটার তালিকার সাথে সরাসরি সম্পর্কযুক্ত নয়।</p>
+      <p id="footer_english">This is Software Generated Report From Bangladesh Election Commission, Signature &amp; Seal Aren't Required.</p>
+    </div>
+  </div>
+</body>
+</html>;
+}
+
 
 function buildHTML(version, data) {
   if (version === 1) return buildHTMLv1(data);
@@ -1052,7 +1482,7 @@ app.get("/admin", adminAuth, (req, res) => {
           <button onclick="return confirm('Delete?')" style="background:#dc3545;color:#fff;border:0;padding:4px 8px;border-radius:3px;cursor:pointer">🗑️</button>
         </form>
       </td>
-    </tr>`;
+    </tr>;
   }).join("");
 
   const pendingList = [...pendingChoices.entries()]
@@ -1110,7 +1540,7 @@ app.get("/admin", adminAuth, (req, res) => {
       <tr><th>Number</th><th>Name</th><th>Balance</th><th>Active</th><th>Default Ver</th><th>Cards</th><th>Last Used</th><th>Actions</th></tr>
       ${rows}
     </table>
-  </body></html>`);
+  </body></html>);
 });
 
 app.post("/admin/add", adminAuth, (req, res) => {
