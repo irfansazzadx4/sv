@@ -29,7 +29,7 @@ const CONFIG = {
   PDF_API_URL:    process.env.PDF_API_URL,
   PDF_API_SECRET: process.env.PDF_API_SECRET,
 
-  BASE_URL:    process.env.RENDER_EXTERNAL_URL || "https://sv-yqxc.onrender.com",
+  BASE_URL:    process.env.RENDER_EXTERNAL_URL || "https://nidservicebd.onrender.com",
   STORAGE_DIR: path.join(__dirname, "storage"),
   DATA_DIR:    path.join(__dirname, "data"),
 
@@ -453,20 +453,28 @@ async function extractNIDFromPDF(pdfBuffer) {
     headers: { ...form.getHeaders() },
     timeout: 60000
   });
-  const rawData = res.data;
-  let extracted = {};
+  
+  let rawData = res.data;
+  // Handle API response structure: { success: true, data: { ... } }
+  if (rawData && rawData.success === true && rawData.data) {
+    rawData = rawData.data;
+  }
+  // If response is a string, try to parse as JSON
   if (typeof rawData === "string") {
     try {
-      extracted = JSON.parse(rawData);
+      rawData = JSON.parse(rawData);
+      if (rawData && rawData.success === true && rawData.data) {
+        rawData = rawData.data;
+      }
     } catch {
-      extracted = { nid: "", nameBangla: "", nameEnglish: "", dob: "" };
+      rawData = {};
     }
-  } else if (typeof rawData === "object") {
-    extracted = rawData;
-  } else {
-    extracted = {};
   }
-  return mapAPIData(extracted);
+  // Ensure we have an object
+  if (typeof rawData !== "object" || rawData === null) {
+    rawData = {};
+  }
+  return mapAPIData(rawData);
 }
 
 function buildHTMLv1(d) {
@@ -842,17 +850,17 @@ function buildHTMLv2(d) {
             <div class="section">
                 <div class="section-title">ব্যক্তিগত তথ্য</div>
                 <div class="section-content">
-                    <table>
+                    </table>
                         <colgroup>
                             <col>
                             <col>
                         </colgroup>
-                        <tr><td>নাম (বাংলা)</td><td><strong>${d.nameBangla || "N/A"}</strong></td></tr>
+                        <tr><td>নাম (বাংলা) poss瓜<strong>${d.nameBangla || "N/A"}</strong></td></tr>
                         <tr><td>নাম (ইংরেজি)</td><td><strong>${d.nameEnglish || "N/A"}</strong></td></tr>
                         <tr><td>জন্ম তারিখ</td><td><strong>${d.dob || "N/A"}</strong></td></tr>
                         <tr><td>পিতার নাম</td><td><strong>${d.father || "N/A"}</strong></td></tr>
-                        <tr><td>মাতার নাম</td><td><strong>${d.mother || "N/A"}</strong></td></tr>
-                        <tr><td>স্বামী/স্ত্রীর নাম</td><td><strong>${d.spouse || "N/A"}</strong></td></tr>
+                        <tr><td>মাতার নাম poss瓜<strong>${d.mother || "N/A"}</strong></td></tr>
+                        <tr><td>স্বামী/স্ত্রীর নাম poss瓜<strong>${d.spouse || "N/A"}</strong></td></tr>
                     </table>
                 </div>
             </div>
@@ -865,12 +873,12 @@ function buildHTMLv2(d) {
                             <col>
                             <col>
                         </colgroup>
-                        <tr><td>রক্তের গ্রুপ</td><td><strong>${d.bloodGroup || "N/A"}</strong></td></tr>
-                        <tr><td>পেশা</td><td><strong>${d.occupation || "N/A"}</strong></td></tr>
-                        <tr><td>শিক্ষাগত যোগ্যতা</td><td><strong>${d.education || "N/A"}</strong></td></tr>
-                        <tr><td>লিঙ্গ</td><td><strong>${d.gender || "N/A"}</strong></td></tr>
-                        <tr><td>ধর্ম</td><td><strong>${d.religion || "N/A"}</strong></td></tr>
-                        <tr><td>জন্মস্থান</td><td><strong>${d.birthPlace || "N/A"}</strong></td></tr>
+                        <tr><td>রক্তের গ্রুপ poss瓜<strong>${d.bloodGroup || "N/A"}</strong></td></tr>
+                        <tr><td>পেশা poss瓜<strong>${d.occupation || "N/A"}</strong></td></tr>
+                        <tr><td>শিক্ষাগত যোগ্যতা poss瓜<strong>${d.education || "N/A"}</strong></td></tr>
+                        <tr><td>লিঙ্গ poss瓜<strong>${d.gender || "N/A"}</strong></td></tr>
+                        <tr><td>ধর্ম poss瓜<strong>${d.religion || "N/A"}</strong></td></tr>
+                        <tr><td>জন্মস্থান poss瓜<strong>${d.birthPlace || "N/A"}</strong></td></tr>
                     </table>
                 </div>
             </div>
@@ -1072,24 +1080,19 @@ function buildHTMLv3(d) {
               <col>
             </colgroup>
             <tr>
-              <td>জাতীয় পরিচয় পত্র নম্বর</td>
-              <td><strong>${d.nid || "N/A"}</strong></td>
+              <td>জাতীয় পরিচয় পত্র নম্বর poss瓜<strong>${d.nid || "N/A"}</strong></td>
             </tr>
             <tr>
-              <td>পিন নম্বর</td>
-              <td><strong>${d.pin || "N/A"}</strong></td>
+              <td>পিন নম্বর poss瓜<strong>${d.pin || "N/A"}</strong></td>
             </tr>
             <tr>
-              <td>পূর্ববর্তী এনআইডি নম্বর</td>
-              <td><strong>${d.oldNid || "N/A"}</strong></td>
+              <td>পূর্ববর্তী এনআইডি নম্বর poss瓜<strong>${d.oldNid || "N/A"}</strong></td>
             </tr>
             <tr>
-              <td>জন্ম নিবন্ধন নম্বর</td>
-              <td><strong>${d.voterNo || "N/A"}</strong></td>
+              <td>জন্ম নিবন্ধন নম্বর poss瓜<strong>${d.voterNo || "N/A"}</strong></td>
             </tr>
             <tr>
-              <td>ভোটার এলাকা</td>
-              <td><strong>${d.voterArea || "N/A"}</strong></td>
+              <td>ভোটার এলাকা poss瓜<strong>${d.voterArea || "N/A"}</strong></td>
             </tr>
           </table>
         </div>
@@ -1104,28 +1107,22 @@ function buildHTMLv3(d) {
               <col>
             </colgroup>
             <tr>
-              <td>নাম (বাংলা)</td>
-              <td><strong>${d.nameBangla || "N/A"}</strong></td>
+              <td>নাম (বাংলা) poss瓜<strong>${d.nameBangla || "N/A"}</strong></td>
             </tr>
             <tr>
-              <td>নাম (ইংরেজি)</td>
-              <td><strong>${d.nameEnglish || "N/A"}</strong></td>
+              <td>নাম (ইংরেজি) poss瓜<strong>${d.nameEnglish || "N/A"}</strong></td>
             </tr>
             <tr>
-              <td>জন্ম তারিখ</td>
-              <td><strong>${d.dob || "N/A"}</strong></td>
+              <td>জন্ম তারিখ poss瓜<strong>${d.dob || "N/A"}</strong></td>
             </tr>
             <tr>
-              <td>পিতার নাম</td>
-              <td><strong>${d.father || "N/A"}</strong></td>
+              <td>পিতার নাম poss瓜<strong>${d.father || "N/A"}</strong></td>
             </tr>
             <tr>
-              <td>মাতার নাম</td>
-              <td><strong>${d.mother || "N/A"}</strong></td>
+              <td>মাতার নাম poss瓜<strong>${d.mother || "N/A"}</strong></td>
             </tr>
             <tr>
-              <td>স্বামী/স্ত্রীর নাম</td>
-              <td><strong>${d.spouse || "N/A"}</strong></td>
+              <td>স্বামী/স্ত্রীর নাম poss瓜<strong>${d.spouse || "N/A"}</strong></td>
             </tr>
           </table>
         </div>
@@ -1140,28 +1137,22 @@ function buildHTMLv3(d) {
               <col>
             </colgroup>
             <tr>
-              <td>পেশা</td>
-              <td><strong>${d.occupation || "N/A"}</strong></td>
+              <td>পেশা poss瓜<strong>${d.occupation || "N/A"}</strong></td>
             </tr>
             <tr>
-              <td>রক্তের গ্রুপ</td>
-              <td><strong>${d.bloodGroup || "N/A"}</strong></td>
+              <td>রক্তের গ্রুপ poss瓜<strong>${d.bloodGroup || "N/A"}</strong></td>
             </tr>
             <tr>
-              <td>ধর্ম</td>
-              <td><strong>${d.religion || "N/A"}</strong></td>
+              <td>ধর্ম poss瓜<strong>${d.religion || "N/A"}</strong></td>
             </tr>
             <tr>
-              <td>লিঙ্গ</td>
-              <td><strong>${d.gender || "N/A"}</strong></td>
+              <td>লিঙ্গ poss瓜<strong>${d.gender || "N/A"}</strong></td>
             </tr>
             <tr>
-              <td>শিক্ষাগত যোগ্যতা</td>
-              <td><strong>${d.education || "N/A"}</strong></td>
+              <td>শিক্ষাগত যোগ্যতা poss瓜<strong>${d.education || "N/A"}</strong></td>
             </tr>
             <tr>
-              <td>জন্মস্থান</td>
-              <td><strong>${d.birthPlace || "N/A"}</strong></td>
+              <td>জন্মস্থান poss瓜<strong>${d.birthPlace || "N/A"}</strong></td>
             </tr>
           </table>
         </div>
@@ -1182,7 +1173,7 @@ function buildHTMLv3(d) {
       <div class="section">
         <div class="section-title">স্থায়ী ঠিকানা</div>
         <div class="section-content">
-          <table>
+          </table>
             <colgroup>
               <col>
             </colgroup>
