@@ -195,12 +195,12 @@ async function restoreData() {
 }
 
 // ─────────────────────── WHATSAPP API ──────────────────────────
-const WA_BASE    = () => `https://graph.facebook.com/${CONFIG.WA_API_VERSION}/${CONFIG.WA_PHONE_ID}`;
-const WA_HEADERS = () => ({ Authorization: `Bearer ${CONFIG.WA_TOKEN}`, "Content-Type": "application/json" });
+const WA_BASE    = () => https://graph.facebook.com/${CONFIG.WA_API_VERSION}/${CONFIG.WA_PHONE_ID};
+const WA_HEADERS = () => ({ Authorization: Bearer ${CONFIG.WA_TOKEN}, "Content-Type": "application/json" });
 
 async function sendText(to, body) {
   try {
-    await axios.post(`${WA_BASE()}/messages`, {
+    await axios.post(${WA_BASE()}/messages, {
       messaging_product: "whatsapp", to, type: "text", text: { body }
     }, { headers: WA_HEADERS() });
   } catch (e) { console.error("sendText error:", e.response?.data || e.message); }
@@ -208,7 +208,7 @@ async function sendText(to, body) {
 
 async function markRead(messageId) {
   try {
-    await axios.post(`${WA_BASE()}/messages`, {
+    await axios.post(${WA_BASE()}/messages, {
       messaging_product: "whatsapp", status: "read", message_id: messageId
     }, { headers: WA_HEADERS() });
   } catch {}
@@ -216,18 +216,18 @@ async function markRead(messageId) {
 
 async function sendVersionChoice(to, nidName, nidNumber, currentDefault) {
   const defaultInfo = currentDefault > 0
-    ? `\n\n⚙️ আপনার default: V${currentDefault} (শুধু V${currentDefault} পেতে কিছু না লিখলেও হবে)`
-    : `\n\n💡 Tip: *.setversion v1* দিলে পরে automatically V1 তৈরি হবে`;
+    ? \n\n⚙️ আপনার default: V${currentDefault} (শুধু V${currentDefault} পেতে কিছু না লিখলেও হবে)
+    : \n\n💡 Tip: *.setversion v1* দিলে পরে automatically V1 তৈরি হবে;
 
   try {
-    await axios.post(`${WA_BASE()}/messages`, {
+    await axios.post(${WA_BASE()}/messages, {
       messaging_product: "whatsapp",
       to,
       type: "interactive",
       interactive: {
         type: "button",
         body: {
-          text: `✅ NID তথ্য পাওয়া গেছে!\n\n👤 নাম: ${nidName}\n🆔 NID: ${nidNumber}\n\nকোন ভার্সনের কার্ড বানাবেন?${defaultInfo}`
+          text: ✅ NID তথ্য পাওয়া গেছে!\n\n👤 নাম: ${nidName}\n🆔 NID: ${nidNumber}\n\nকোন ভার্সনের কার্ড বানাবেন?${defaultInfo}
         },
         action: {
           buttons: [
@@ -241,7 +241,7 @@ async function sendVersionChoice(to, nidName, nidNumber, currentDefault) {
   } catch (e) {
     console.error("sendVersionChoice error:", e.response?.data || e.message);
     await sendText(to,
-      `✅ NID তথ্য পাওয়া গেছে!\n👤 নাম: ${nidName}\n🆔 NID: ${nidNumber}\n\nকোন ভার্সন চান? টাইপ করুন: *v1*, *v2*, অথবা *v3*${defaultInfo}`
+      ✅ NID তথ্য পাওয়া গেছে!\n👤 নাম: ${nidName}\n🆔 NID: ${nidNumber}\n\nকোন ভার্সন চান? টাইপ করুন: *v1*, *v2*, অথবা *v3*${defaultInfo}
     );
   }
 }
@@ -251,8 +251,8 @@ async function uploadMedia(buffer, filename, mimetype) {
   form.append("messaging_product", "whatsapp");
   form.append("file", buffer, { filename, contentType: mimetype });
   form.append("type", mimetype);
-  const res = await axios.post(`${WA_BASE()}/media`, form, {
-    headers: { ...form.getHeaders(), Authorization: `Bearer ${CONFIG.WA_TOKEN}` },
+  const res = await axios.post(${WA_BASE()}/media, form, {
+    headers: { ...form.getHeaders(), Authorization: Bearer ${CONFIG.WA_TOKEN} },
     maxContentLength: Infinity, maxBodyLength: Infinity,
   });
   return res.data.id;
@@ -260,7 +260,7 @@ async function uploadMedia(buffer, filename, mimetype) {
 
 async function sendDocument(to, mediaId, filename, caption) {
   try {
-    await axios.post(`${WA_BASE()}/messages`, {
+    await axios.post(${WA_BASE()}/messages, {
       messaging_product: "whatsapp", to, type: "document",
       document: { id: mediaId, filename, caption }
     }, { headers: WA_HEADERS() });
@@ -269,11 +269,11 @@ async function sendDocument(to, mediaId, filename, caption) {
 
 async function downloadMedia(mediaId) {
   const meta = await axios.get(
-    `https://graph.facebook.com/${CONFIG.WA_API_VERSION}/${mediaId}`,
-    { headers: { Authorization: `Bearer ${CONFIG.WA_TOKEN}` } }
+    https://graph.facebook.com/${CONFIG.WA_API_VERSION}/${mediaId},
+    { headers: { Authorization: Bearer ${CONFIG.WA_TOKEN} } }
   );
   const fileRes = await axios.get(meta.data.url, {
-    headers: { Authorization: `Bearer ${CONFIG.WA_TOKEN}` },
+    headers: { Authorization: Bearer ${CONFIG.WA_TOKEN} },
     responseType: "arraybuffer",
   });
   return { buffer: Buffer.from(fileRes.data), mimetype: meta.data.mime_type };
@@ -439,7 +439,7 @@ function mapAPIData(d) {
 function buildHTMLv1(d) {
   const presentAddr  = (d.presentAddress  || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
   const permanentAddr = (d.permanentAddress || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
-  const qrData = encodeURIComponent(`${d.nameEnglish} ${d.nid} ${d.dob}`);
+  const qrData = encodeURIComponent(${d.nameEnglish} ${d.nid} ${d.dob});
 
   return <!DOCTYPE html>
 <html lang="bn">
@@ -630,7 +630,7 @@ function buildHTMLv1(d) {
         </div>
     </div> 
 </body>
-</html>`;
+</html>;
 }
 
 function buildHTMLv2(d) {
@@ -638,7 +638,7 @@ function buildHTMLv2(d) {
   const permanentAddrFormatted = (d.permanentAddress || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
   const SITE = "https://dakhila-ldtax-gov-bd.rf.gd";
 
-  return `<!DOCTYPE html>
+  return <!DOCTYPE html>
 <html lang="bn">
 <head>
     <meta charset="UTF-8">
@@ -873,7 +873,7 @@ function buildHTMLv2(d) {
         </div>
     </div>
 </body>
-</html>`;
+</html>;
 }
 
 function buildHTMLv3(d) {
@@ -881,7 +881,7 @@ function buildHTMLv3(d) {
   const permanentAddrFormatted = (d.permanentAddress || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
   const SITE = "https://dakhila-ldtax-gov-bd.rf.gd";
 
-  return `<!DOCTYPE html>
+  return <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -1178,7 +1178,7 @@ function buildHTML(version, data) {
 // ─────────────────── HTML → PDF CONVERTER ──────────────────────
 async function convertHTMLtoPDF(html) {
   if (!CONFIG.PDF_API_URL) throw new Error("PDF_API_URL set করা নেই!");
-  const res = await axios.post(`${CONFIG.PDF_API_URL}/pdf`, {
+  const res = await axios.post(${CONFIG.PDF_API_URL}/pdf, {
     secret: CONFIG.PDF_API_SECRET,
     html,
   }, { timeout: 90000 });
@@ -1197,19 +1197,19 @@ async function processNIDCard(from, data, version, msgId) {
   backupData();
 
   const safeName = (data.nameEnglish || data.nameBangla || "NID").replace(/[/\\?%*:|"<>]/g, "").trim();
-  const filename  = `${data.nid || Date.now()} - ${safeName}.pdf`;
+  const filename  = ${data.nid || Date.now()} - ${safeName}.pdf;
 
   const price  = getSettings().cardPrice || 0;
   const defVer = getUserDefaultVersion(from);
 
   const captionLines = [
-    `✅ NID Card (Version ${version}) তৈরি হয়েছে!`,
-    ``,
-    `👤 নাম: ${data.nameBangla || data.nameEnglish}`,
-    `🆔 NID: ${toBn(data.nid)}`,
-    `🎂 DOB: ${data.dob}`,
-    price > 0 ? `💰 Remaining: ${getUserBalance(from)} টাকা` : "",
-    defVer > 0 ? `⚙️ Default Version: V${defVer}` : "💡 .setversion v1 দিলে পরে auto তৈরি হবে",
+    ✅ NID Card (Version ${version}) তৈরি হয়েছে!,
+    ,
+    👤 নাম: ${data.nameBangla || data.nameEnglish},
+    🆔 NID: ${toBn(data.nid)},
+    🎂 DOB: ${data.dob},
+    price > 0 ? 💰 Remaining: ${getUserBalance(from)} টাকা : "",
+    defVer > 0 ? ⚙️ Default Version: V${defVer} : "💡 .setversion v1 দিলে পরে auto তৈরি হবে",
   ].filter(Boolean).join("\n");
 
   const mediaId = await uploadMedia(pdfBuffer, filename, "application/pdf");
@@ -1218,7 +1218,7 @@ async function processNIDCard(from, data, version, msgId) {
   await sendDocument(from, mediaId, filename, "");
 
   clearPending(from);
-  console.log(`✅ Card sent to ${from} — V${version} — NID: ${data.nid}`);
+  console.log(✅ Card sent to ${from} — V${version} — NID: ${data.nid});
 }
 
 // ─────────────────── INCOMING MESSAGE HANDLER ──────────────────
@@ -1250,7 +1250,7 @@ async function handleIncoming(msg, contact) {
       } else {
         const cur = getUserDefaultVersion(from);
         return sendText(from,
-          `⚙️ *Version সেটিং*\n\nআপনার current default: ${cur > 0 ? `V${cur}` : "বন্ধ (প্রতিবার choice দেখায়)"}\n\nChange করুন:\n• *.setversion v1* → সবসময় V1\n• *.setversion v2* → সবসময় V2\n• *.setversion v3* → সবসময় V3\n• *.setversion off* → প্রতিবার choice দেখাবে`
+          ⚙️ *Version সেটিং*\n\nআপনার current default: ${cur > 0 ? V${cur} : "বন্ধ (প্রতিবার choice দেখায়)"}\n\nChange করুন:\n• *.setversion v1* → সবসময় V1\n• *.setversion v2* → সবসময় V2\n• *.setversion v3* → সবসময় V3\n• *.setversion off* → প্রতিবার choice দেখাবে
         );
       }
     }
@@ -1267,21 +1267,21 @@ async function handleIncoming(msg, contact) {
       const price  = getSettings().cardPrice || 0;
       const defVer = getUserDefaultVersion(from);
       return sendText(from,
-        `✅ Authorized\n💰 Balance: ${bal} টাকা\n💳 Card Price: ${price} টাকা\n⚙️ Default Version: ${defVer > 0 ? `V${defVer}` : "বন্ধ"}\n\nVersion change: *.setversion v1/v2/v3/off*`
+        ✅ Authorized\n💰 Balance: ${bal} টাকা\n💳 Card Price: ${price} টাকা\n⚙️ Default Version: ${defVer > 0 ? V${defVer} : "বন্ধ"}\n\nVersion change: *.setversion v1/v2/v3/off*
       );
     }
 
     if (text === ".help" || text === "help") {
       markRead(msgId);
       return sendText(from,
-        `📋 *Commands*\n\n` +
-        `📄 NID PDF পাঠান → কার্ড তৈরি\n` +
-        `⚙️ *.setversion v1* → সবসময় V1\n` +
-        `⚙️ *.setversion v2* → সবসময় V2\n` +
-        `⚙️ *.setversion v3* → সবসময় V3\n` +
-        `⚙️ *.setversion off* → প্রতিবার choice\n` +
-        `📊 *.status* → balance ও settings\n` +
-        `🏓 *.ping* → bot check`
+        📋 *Commands*\n\n +
+        📄 NID PDF পাঠান → কার্ড তৈরি\n +
+        ⚙️ *.setversion v1* → সবসময় V1\n +
+        ⚙️ *.setversion v2* → সবসময় V2\n +
+        ⚙️ *.setversion v3* → সবসময় V3\n +
+        ⚙️ *.setversion off* → প্রতিবার choice\n +
+        📊 *.status* → balance ও settings\n +
+        🏓 *.ping* → bot check
       );
     }
 
@@ -1295,9 +1295,9 @@ async function handleIncoming(msg, contact) {
       if (!pending) { markRead(msgId); return sendText(from, "❌ কোনো PDF পাওয়া যায়নি। আগে PDF পাঠান।"); }
       if (!isAllowed(from)) { markRead(msgId); return sendText(from, "❌ আপনি authorized নন।"); }
       const price = getSettings().cardPrice || 0;
-      if (price > 0 && !deductBalance(from)) { markRead(msgId); return sendText(from, `❌ Balance কম! ${price} টাকা দরকার।`); }
+      if (price > 0 && !deductBalance(from)) { markRead(msgId); return sendText(from, ❌ Balance কম! ${price} টাকা দরকার।); }
       return processNIDCard(from, pending.data, vMap[text], msgId)
-        .catch(e => sendText(from, `❌ Error: ${e.message}`));
+        .catch(e => sendText(from, ❌ Error: ${e.message}));
     }
 
     markRead(msgId);
@@ -1316,7 +1316,7 @@ async function handleIncoming(msg, contact) {
     const price = getSettings().cardPrice || 0;
     if (price > 0 && !deductBalance(from)) {
       markRead(msgId);
-      return sendText(from, `❌ Balance কম! ${price} টাকা দরকার।\nBalance: ${getUserBalance(from)} টাকা`);
+      return sendText(from, ❌ Balance কম! ${price} টাকা দরকার।\nBalance: ${getUserBalance(from)} টাকা);
     }
 
     const versionMap = { choose_v1: 1, choose_v2: 2, choose_v3: 3 };
@@ -1324,7 +1324,7 @@ async function handleIncoming(msg, contact) {
     if (!version) { markRead(msgId); return sendText(from, "❌ অজানা choice।"); }
 
     return processNIDCard(from, pending.data, version, msgId)
-      .catch(e => sendText(from, `❌ Error: ${e.message}`));
+      .catch(e => sendText(from, ❌ Error: ${e.message}));
   }
 
   if (msg.type === "document") {
@@ -1351,18 +1351,18 @@ async function handleIncoming(msg, contact) {
       if (defVersion > 0) {
         const price = getSettings().cardPrice || 0;
         if (price > 0 && !deductBalance(from)) {
-          return sendText(from, `❌ Balance কম! ${price} টাকা দরকার।`);
+          return sendText(from, ❌ Balance কম! ${price} টাকা দরকার।);
         }
         setPending(from, data);
         return processNIDCard(from, data, defVersion, null)
-          .catch(e => sendText(from, `❌ Error: ${e.message}`));
+          .catch(e => sendText(from, ❌ Error: ${e.message}));
       }
 
       setPending(from, data);
       await sendVersionChoice(from, data.nameBangla || data.nameEnglish || "অজানা", data.nid || "N/A", 0);
     } catch (err) {
       console.error("PDF Process error:", err.message);
-      await sendText(from, `❌ Error: ${err.message}\nআবার চেষ্টা করুন।`);
+      await sendText(from, ❌ Error: ${err.message}\nআবার চেষ্টা করুন।);
     }
   }
 }
@@ -1397,10 +1397,10 @@ app.post("/webhook", async (req, res) => {
 });
 
 app.get("/",        (_, res) => res.send("✅ NID Bot is running"));
-app.get("/privacy", (_, res) => res.send(`<html><body style="font-family:sans-serif;max-width:700px;margin:40px auto;padding:20px;">
+app.get("/privacy", (_, res) => res.send(<html><body style="font-family:sans-serif;max-width:700px;margin:40px auto;padding:20px;">
   <h1>Privacy Policy</h1>
   <p>NID Service Bot processes NID PDFs temporarily and does not store personal data.</p>
-</body></html>`));
+</body></html>));
 
 // ──────────────────── ADMIN PANEL ───────────────────────────────
 const adminSessions = new Set();
@@ -1414,20 +1414,20 @@ function adminAuth(req, res, next) {
 }
 
 app.get("/admin/login", (_, res) => {
-  res.send(`<html><body style="font-family:sans-serif;max-width:400px;margin:80px auto;padding:30px;background:#f5f5f5;border-radius:8px;">
+  res.send(<html><body style="font-family:sans-serif;max-width:400px;margin:80px auto;padding:30px;background:#f5f5f5;border-radius:8px;">
     <h2>🔐 Admin Login</h2>
     <form method="POST" action="/admin/login">
       <input name="password" type="password" placeholder="Password" style="width:100%;padding:10px;margin:10px 0;" required/>
       <button style="width:100%;padding:10px;background:#0078d4;color:#fff;border:0;border-radius:4px;cursor:pointer;">Login</button>
     </form>
-  </body></html>`);
+  </body></html>);
 });
 
 app.post("/admin/login", (req, res) => {
   if (req.body.password === CONFIG.ADMIN_PASS) {
     const tok = crypto.randomBytes(16).toString("hex");
     adminSessions.add(tok);
-    res.setHeader("Set-Cookie", `admin_sess=${tok}; HttpOnly; Path=/; Max-Age=86400`);
+    res.setHeader("Set-Cookie", admin_sess=${tok}; HttpOnly; Path=/; Max-Age=86400);
     return res.redirect("/admin");
   }
   res.send("❌ Wrong password. <a href='/admin/login'>Try again</a>");
@@ -1447,8 +1447,8 @@ app.get("/admin", adminAuth, (req, res) => {
 
   const rows = users.map(u => {
     const s   = stats[normalizeNumber(u.number)] || { count: 0, lastUsed: "—" };
-    const def = u.defaultVersion > 0 ? `V${u.defaultVersion}` : "—";
-    return `<tr>
+    const def = u.defaultVersion > 0 ? V${u.defaultVersion} : "—";
+    return <tr>
       <td>${u.number}</td>
       <td>${u.name || "—"}</td>
       <td style="color:${(u.balance||0) < 0 ? 'red':'green'};font-weight:bold">${u.balance||0} ৳</td>
@@ -1486,10 +1486,10 @@ app.get("/admin", adminAuth, (req, res) => {
   }).join("");
 
   const pendingList = [...pendingChoices.entries()]
-    .map(([num, p]) => `<li>${num} — ${p.data.nameBangla || "?"} (NID: ${p.data.nid || "?"})</li>`)
+    .map(([num, p]) => <li>${num} — ${p.data.nameBangla || "?"} (NID: ${p.data.nid || "?"})</li>)
     .join("") || "<li>কেউ নেই</li>";
 
-  res.send(`<html><head><style>
+  res.send(<html><head><style>
     body{font-family:sans-serif;max-width:1300px;margin:30px auto;padding:20px}
     table{width:100%;border-collapse:collapse;margin:15px 0}
     th,td{border:1px solid #ddd;padding:7px;text-align:left;font-size:12px}
@@ -1620,7 +1620,7 @@ setInterval(() => {
   for (const [num, p] of pendingChoices.entries()) {
     if (Date.now() - p.timestamp > limit) {
       pendingChoices.delete(num);
-      console.log(`⏰ Pending expired: ${num}`);
+      console.log(⏰ Pending expired: ${num});
     }
   }
 }, 5 * 60 * 1000);
@@ -1632,6 +1632,6 @@ setInterval(() => {
   cleanupOldFiles();
 
   app.listen(CONFIG.PORT, "0.0.0.0", () => {
-    console.log(`🚀 NID Bot running on port ${CONFIG.PORT}`);
+    console.log(🚀 NID Bot running on port ${CONFIG.PORT});
   });
 })();
