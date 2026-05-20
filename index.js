@@ -206,7 +206,6 @@ async function sendText(to, body) {
   } catch (e) { console.error("sendText error:", e.response?.data || e.message); }
 }
 
-// markRead এখন আলাদাভাবে call করা হবে — processing এর পরে
 async function markRead(messageId) {
   try {
     await axios.post(`${WA_BASE()}/messages`, {
@@ -285,31 +284,31 @@ function mapAPIData(d) {
   return {
     nid:              d.nationalId || d.nid || d.NID || d.national_id || "",
     pin:              d.pin || "",
-    oldNid:           d.oldNid || d.old_nid || "",
-    nameBangla:       d.nameBangla || d.nameBn || d.name_bn || "",
-    nameEnglish:      d.nameEnglish || d.nameEn || d.name_en || "",
+    oldNid:           d.formNo    || d.oldNid || d.old_nid || "",
+    nameBangla:       d.nameBn    || d.nameBangla || d.name_bn || "",
+    nameEnglish:      d.nameEn    || d.nameEnglish || d.name_en || "",
     dob:              d.dateOfBirth || d.dob || "",
-    birthDay:         d.birthDay || "",
-    age:              d.age || "",
-    father:           d.fatherName || d.father || d.father_name || "",
-    mother:           d.motherName || d.mother || d.mother_name || "",
-    spouse:           d.spouse || d.spouseName || "",
-    gender:           d.gender || "",
-    religion:         d.religion || "",
+    birthDay:         d.birthDay  || "",
+    age:              d.age       || "",
+    father:           d.father    || d.fatherName || d.father_name || "",
+    mother:           d.mother    || d.motherName || d.mother_name || "",
+    spouse:           d.spouse    || d.spouseName || "",
+    gender:           d.gender    || "",
+    religion:         d.religion  || "",
     birthPlace:       d.birthPlace || d.birth_place || "",
     bloodGroup:       d.bloodGroup || d.blood_group || "",
-    voterArea:        d.voterArea || d.vuter_area || "",
-    voterNo:          d.voterNo || d.voter_no || "",
+    voterArea:        d.voterArea  || d.vuter_area || "",
+    voterNo:          d.voterNo    || d.voter_no || "",
     voterAreaCode:    d.voterAreaCode || d.voter_aria_code || "",
-    slNo:             d.slNo || d.sl_no || "",
+    slNo:             d.slNo      || d.sl_no || "",
     upazilaCode:      d.upazilaCode || d.upazila_code || "",
-    fatherNID:        d.fatherNID || "",
-    motherNID:        d.motherNID || "",
+    fatherNID:        d.nidFather  || d.fatherNID || "",
+    motherNID:        d.nidMother  || d.motherNID || "",
     occupation:       d.occupation || "",
-    education:        d.education || "",
+    education:        d.education  || "",
     presentAddress:   (typeof d.presentAddress   === "string") ? d.presentAddress   : (d.presentAddress?.addressLine   || d.address || ""),
     permanentAddress: (typeof d.permanentAddress === "string") ? d.permanentAddress : (d.permanentAddress?.addressLine || ""),
-    photo:            d.userIMG || d.photo || d.imageUrl12 || "",
+    photo:            d.photo      || d.userIMG || d.imageUrl12 || "",
     dateOfToday:      new Date().toLocaleDateString("bn-BD", { year: "numeric", month: "long", day: "numeric" }),
   };
 }
@@ -333,81 +332,16 @@ async function extractNIDFromPDF(buffer) {
 }
 
 // ─────────────────────── HTML BUILDER ──────────────────────────
-// Bangla number converter
 function toBn(str) {
   if (!str) return "";
   const map = { "0":"০","1":"১","2":"২","3":"৩","4":"৪","5":"৫","6":"৬","7":"৭","8":"৮","9":"৯" };
   return String(str).replace(/[0-9]/g, d => map[d]);
 }
 
-// Format date YYYY-MM-DD → বাংলায়
-function formatDateBn(dob) {
-  if (!dob) return "";
-  const months = ["","জানুয়ারি","ফেব্রুয়ারি","মার্চ","এপ্রিল","মে","জুন","জুলাই","আগস্ট","সেপ্টেম্বর","অক্টোবর","নভেম্বর","ডিসেম্বর"];
-  const parts = dob.split("-");
-  if (parts.length !== 3) return toBn(dob);
-  return `${toBn(parts[2])} ${months[parseInt(parts[1])]} ${toBn(parts[0])}`;
-}
-
-// Row helper — skip empty
-function row(label, value) {
-  if (!value || value === "N/A" || value === "undefined") return "";
-  return `<tr><td><strong>${label}</strong></td><td>${value}</td></tr>`;
-}
-
-// ── SHARED CSS (Solaiman Lipi via Google Fonts proxy / maateen) ──
-const SHARED_CSS = `
-  @import url('https://fonts.maateen.me/solaiman-lipi/font.css');
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: 'Solaiman Lipi', sans-serif;
-    background: #f4f4f9;
-    width: 210mm;
-    margin: auto;
-    padding: 0;
-  }
-  @page { size: 210mm 297mm; margin: 0; }
-  .container { background: white; padding: 0 20px; }
-  .header { padding: 10px 0 0; }
-  .header_top { text-align: center; border-bottom: 1px solid #c2c2c2; padding-bottom: 8px; }
-  .logo { width: 60px; margin-bottom: 4px; }
-  p.text { line-height: 10px; font-size: 14px; margin: 4px 0; }
-  .user_photo { text-align: center; }
-  img#user_img {
-    width: 110px; height: 120px; margin: 10px 0 20px;
-    border-radius: 10px;
-    box-shadow: rgba(0,0,0,0.35) 0px 2px 10px;
-    object-fit: cover;
-  }
-  .sub_container { padding: 0 40px; }
-  .section { margin-bottom: 1px; }
-  .section-title {
-    font-size: 17px; font-weight: bold;
-    background: #bbe6ed; color: black; padding: 5px;
-  }
-  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  colgroup col:first-child { width: 30%; }
-  colgroup col:last-child  { width: 70%; }
-  table, th, td { border: 1px solid #EAEAEA; }
-  th, td { padding: 8px; text-align: left; font-size: 13px; }
-  table td:first-child { font-weight: bold; color: #000; }
-  .footer_text { margin-top: 10px; padding-bottom: 10px; }
-  .footer_text p { color: red; text-align: center; font-size: 13px; margin-bottom: 6px; }
-  #footer_english {
-    text-align: center; margin-top: -4px; font-size: 13px;
-    font-weight: bold; font-family: Arial; letter-spacing: -0.2px; color: #000;
-  }
-  @media print {
-    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    body { background: white; }
-    .section { page-break-inside: avoid; }
-  }
-`;
-
-// ── V1 — signToServerV1.php exact template ──
+// ── V1 — signtoserverv1 php exact recreation ──
 function buildHTMLv1(d) {
-  const presentAddr  = (d.presentAddress  || "").replace(/\n/g, "<br>");
-  const permanentAddr = (d.permanentAddress || "").replace(/\n/g, "<br>");
+  const presentAddr  = (d.presentAddress  || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
+  const permanentAddr = (d.permanentAddress || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
   const qrData = encodeURIComponent(`${d.nameEnglish} ${d.nid} ${d.dob}`);
 
   return `<!DOCTYPE html>
@@ -420,27 +354,40 @@ function buildHTMLv1(d) {
     <link rel="stylesheet" href="https://site-assets.fontawesome.com/releases/v6.1.1/css/all.css">
     <style>
         @import url('https://fonts.maateen.me/solaiman-lipi/font.css');
-        @page { size: A4; margin: 0; }
+        @page {
+            size: A4;
+            margin: 0; 
+        }
         body {
             margin: 0;
-            font-family: 'Solaimanlipi', sans-serif;
+            font-family: 'Solaimanlipi', sans-serif; 
             display: flex;
             flex-direction: column;
             align-items: center;
             min-height: 10vh;
-            background-color: #f0f0f0;
+            background-color: #f0f0f0; 
         }
+        
         .printable-container {
-            width: 750px;
+            width: 750px; 
             height: 1000px;
             position: relative;
             box-shadow: 0;
             margin: 10px 0;
             flex-shrink: 0;
-            background-color: lightgrey;
+            background-color: lightgrey; 
         }
-        .background { position: relative; width: 100%; height: 100%; }
-        .crane { max-width: 100%; height: 100%; }
+        
+        .background {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+        .crane {
+            max-width: 100%;
+            height: 100%;
+        }
+        
         #print-pdf-btn {
             background: linear-gradient(45deg, #FF5722, #FF9800);
             padding: 10px 20px;
@@ -450,7 +397,7 @@ function buildHTMLv1(d) {
             font-size: 20px;
             font-weight: bold;
             cursor: pointer;
-            box-shadow: 2px 5px 10px rgba(0,0,0,0.2);
+            box-shadow: 2px 5px 10px rgba(0, 0, 0, 0.2);
             color: #fff;
             border-radius: 25px;
             margin: 25px;
@@ -459,135 +406,144 @@ function buildHTMLv1(d) {
             transition: all 0.3s ease-in-out;
             letter-spacing: 1px;
         }
+
         #print-pdf-btn:hover {
             background: linear-gradient(45deg, #FF9800, #FF5722);
             transform: translateY(-5px) scale(1.05);
-            box-shadow: 2px 8px 15px rgba(0,0,0,0.3);
+            box-shadow: 2px 8px 15px rgba(0, 0, 0, 0.3);
         }
-        @media print {
+
+         @media print {
             html, body {
                 width: 210mm !important;
                 height: 297mm !important;
                 background-color: #ffffff !important;
-                margin: 0; padding: 0;
-                zoom: 100%;
+                margin: 0;
+                padding: 0;
+                zoom: 100%; 
                 -webkit-print-color-adjust: exact;
                 color-adjust: exact;
             }
             .print-only { display: block !important; }
             .no-print { display: none !important; }
-            @page { margin-top: 0mm; margin-bottom: 0mm; }
-            .printable-container {
-                width: 205mm;
-                height: 295mm;
-                page-break-after: avoid;
-                margin: 0mm;
-                overflow: hidden;
+
+            @page {
+                margin-top: 0mm; 
+                margin-bottom: 0mm; 
             }
-            .crane { width: 100%; height: 100%; display: block; }
+            .printable-container {
+                width: 205mm; 
+                height: 295mm; 
+                page-break-after: avoid; 
+                margin: 0mm; 
+                overflow: hidden; 
+            }
+            .crane {
+                width: 100%;
+                height: 100%;
+                display: block;
+            }
         }
     </style>
 </head>
 <body style="text-align: center;">
 
-    <div class="no-print" style="padding: 10px; font-weight: bold; background-color: #fff3cd; border: 1px solid #ffc107; margin-bottom: 20px;"></div>
-
+    <div class="no-print" style="padding: 10px; font-weight: bold; background-color: #fff3cd; border: 1px solid #ffc107; margin-bottom: 20px;">
+    </div>
+    
     <div class="printable-container">
         <img class="crane" src="https://dakhila-ldtax-gov-bd.rf.gd/assets/images/server_unofficialV1.jpg" height="1000px" width="750px">
 
-        <div style="position:absolute;left:30%;top:8%;width:auto;font-size:16px;color:rgb(255 224 0);"><b>National Identity Registration Wing (NIDW)</b></div>
-        <div style="position:absolute;left:37%;top:11%;width:auto;font-size:14px;color:rgb(255,47,161);"><b>Select Your Search Category</b></div>
-        <div style="position:absolute;left:45%;top:12.8%;width:auto;font-size:12px;color:rgb(8,121,4);">Search By NID / Voter No.</div>
-        <div style="position:absolute;left:45%;top:14.3%;width:auto;font-size:12px;color:rgb(7,119,184);">Search By Form No.</div>
-        <div style="position:absolute;left:30%;top:16.9%;width:auto;font-size:12px;color:rgb(252,0,0);"><b>NID or Voter No*</b></div>
-        <div style="position:absolute;left:45%;top:16.9%;width:auto;font-size:12px;color:rgb(143,143,143);">${d.nid}</div>
-        <div style="position:absolute;left:62.9%;top:17.1%;width:auto;font-size:11px;color:rgb(255 255 255);">Submit</div>
-        <div style="position:absolute;left:89%;top:11.55%;width:auto;font-size:11px;color:#fff;">Home</div>
+        <div style="position: absolute; left: 30%; top: 8%; width: auto; font-size: 16px; color: rgb(255 224 0);"><b>National Identity Registration Wing (NIDW)</b></div>
+        <div style="position: absolute; left: 37%; top: 11%; width: auto; font-size: 14px; color: rgb(255, 47, 161);"><b>Select Your Search Category</b></div>
+        <div style="position: absolute; left: 45%; top: 12.8%; width: auto; font-size: 12px; color: rgb(8, 121, 4);">Search By NID / Voter No.</div>
+        <div style="position: absolute; left: 45%; top: 14.3%; width: auto; font-size: 12px; color: rgb(7, 119, 184);">Search By Form No.</div>
+        <div style="position: absolute; left: 30%; top: 16.9%; width: auto; font-size: 12px; color: rgb(252, 0, 0);"><b>NID or Voter No*</b></div>
+        <div style="position: absolute; left: 45%; top: 16.9%; width: auto; font-size: 12px; color: rgb(143, 143, 143);">${d.nid}</div>
+        <div style="position: absolute; left: 62.9%; top: 17.1%; width: auto; font-size: 11px; color: rgb(255 255 255);">Submit</div>
+        <div style="position: absolute; left: 89%; top: 11.55%; width: auto; font-size: 11px; color: #fff;">Home</div>
 
-        <div style="position:absolute;left:37%;top:27%;font-size:16px;"><b>জাতীয় পরিচিতি তথ্য</b></div>
-        <div style="position:absolute;left:37%;top:29.7%;font-size:13px;">জাতীয় পরিচয় পত্র নম্বর</div>
-        <div style="position:absolute;left:55%;top:29.7%;font-size:14px;">${d.nid}</div>
+        <div style="position: absolute; left: 37%; top: 27%; font-size: 16px;"><b>জাতীয় পরিচিতি তথ্য</b></div>
+        <div style="position: absolute; left: 37%; top: 29.7%; font-size: 13px;">জাতীয় পরিচয় পত্র নম্বর</div>
+        <div id="nid_no" style="position: absolute; left: 55%; top: 29.7%; font-size: 14px;">${d.nid}</div>
 
-        <div style="position:absolute;left:37%;top:32.5%;font-size:13px;">পিন নম্বর</div>
-        <div style="position:absolute;left:55%;top:32.5%;font-size:14px;">${d.pin}</div>
+        <div style="position: absolute; left: 37%; top: 32.5%; font-size: 13px;">পিন নম্বর</div>
+        <div id="nid_father" style="position: absolute; left: 55%; top: 32.5%; font-size: 14px;">${d.pin}</div>
 
-        <div style="position:absolute;left:37%;top:35%;font-size:13px;">ফরম নাম্বার</div>
-        <div style="position:absolute;left:55%;top:35%;font-size:14px;">${d.oldNid}</div>
+        <div style="position: absolute; left: 37%; top: 35%; font-size: 13px;">ফরম নাম্বার</div>
+        <div id="from_number" style="position: absolute; left: 55%; top: 35%; font-size: 14px;">${d.oldNid}</div>
 
-        <div style="position:absolute;left:37%;top:37.5%;font-size:14px;">ভোটার নাম্বার</div>
-        <div style="position:absolute;left:55%;top:37.5%;font-size:14px;">${d.voterNo}</div>
+        <div style="position: absolute; left: 37%; top: 37.5%; font-size: 14px;">ভোটার নাম্বার</div>
+        <div id="spouse" style="position: absolute; left: 55%; top: 37.5%; font-size: 14px;">${d.voterNo}</div>
 
-        <div style="position:absolute;left:37%;top:40.2%;font-size:14px;">ভোটার এলাকা</div>
-        <div style="position:absolute;left:55%;top:40.2%;font-size:14px;">${d.voterArea}</div>
+        <div style="position: absolute; left: 37%; top: 40.2%; font-size: 14px;">ভোটার এলাকা</div>
+        <div id="voter_area_code" style="position: absolute; left: 55%; top: 40.2%; font-size: 14px;">${d.voterArea}</div>
 
-        <div style="position:absolute;left:37%;top:43%;font-size:16px;"><b>ব্যক্তিগত তথ্য</b></div>
-        <div style="position:absolute;left:37%;top:45.6%;font-size:14px;">নাম (বাংলা)</div>
-        <div style="position:absolute;left:55%;top:45.6%;font-size:14px;"><b>${d.nameBangla}</b></div>
+        <div style="position: absolute; left: 37%; top: 43%; font-size: 16px;"><b>ব্যক্তিগত তথ্য</b></div>
+        <div style="position: absolute; left: 37%; top: 45.6%; font-size: 14px;">নাম (বাংলা)</div>
+        <div id="name_bn" style="position: absolute; left: 55%; top: 45.6%; font-size: 14px;"><b>${d.nameBangla}</b></div>
 
-        <div style="position:absolute;left:37%;top:48.5%;font-size:14px;">নাম (ইংরেজি)</div>
-        <div style="position:absolute;left:55%;top:48.5%;font-size:14px;">${d.nameEnglish}</div>
+        <div style="position: absolute; left: 37%; top: 48.5%; font-size: 14px;">নাম (ইংরেজি)</div>
+        <div id="name_en" style="position: absolute; left: 55%; top: 48.5%; font-size: 14px;">${d.nameEnglish}</div>
 
-        <div style="position:absolute;left:37%;top:51%;font-size:14px;">জন্ম তারিখ</div>
-        <div style="position:absolute;left:55%;top:51%;font-size:14px;">${d.dob}</div>
+        <div style="position: absolute; left: 37%; top: 51%; font-size: 14px;">জন্ম তারিখ</div>
+        <div id="dob" style="position: absolute; left: 55%; top: 51%; font-size: 14px;">${d.dob}</div>
 
-        <div style="position:absolute;left:37%;top:53.7%;font-size:14px;">পিতার নাম</div>
-        <div style="position:absolute;left:55%;top:53.7%;font-size:14px;">${d.father}</div>
+        <div style="position: absolute; left: 37%; top: 53.7%; font-size: 14px;">পিতার নাম</div>
+        <div id="fathers_name" style="position: absolute; left: 55%; top: 53.7%; font-size: 14px;">${d.father}</div>
 
-        <div style="position:absolute;left:37%;top:56.2%;font-size:14px;">মাতার নাম</div>
-        <div style="position:absolute;left:55%;top:56.2%;font-size:14px;">${d.mother}</div>
+        <div style="position: absolute; left: 37%; top: 56.2%; font-size: 14px;">মাতার নাম</div>
+        <div id="mothers_name" style="position: absolute; left: 55%; top: 56.2%; font-size: 14px;">${d.mother}</div>
+        
+        <div style="position: absolute; left: 37%; top: 59%; font-size: 14px;">স্বামী/স্ত্রীর নাম</div>
+        <div id="spouse_name" style="position: absolute; left: 55%; top: 59%; font-size: 14px;">${d.spouse || ""}</div>
+        
+        <div style="position: absolute; left: 37%; top: 61.8%; font-size: 16px;"><b>অন্যান্য তথ্য</b></div>
+        
+        <div style="position: absolute; left: 37%; top: 65%; font-size: 14px;">লিঙ্গ</div>
+        <div id="gender" style="position: absolute; left: 55%; top: 65%; font-size: 14px;">${d.gender}</div>
 
-        <div style="position:absolute;left:37%;top:59%;font-size:14px;">স্বামী/স্ত্রীর নাম</div>
-        <div style="position:absolute;left:55%;top:59%;font-size:14px;">${d.spouse}</div>
+        <div style="position: absolute; left: 37%; top: 67.6%; font-size: 14px;">জন্মস্থান</div>
+        <div id="birth_place" style="position: absolute; left: 55%; top: 67.6%; font-size: 14px;">${d.birthPlace}</div>
 
-        <div style="position:absolute;left:37%;top:61.8%;font-size:16px;"><b>অন্যান্য তথ্য</b></div>
+        <div style="position: absolute; left: 37%; top: 70.3%; font-size: 14px;">রক্তের গ্রুপ</div>
+        <div id="blood_group" style="position: absolute; left: 55%; top: 70.3%; font-size: 14px; color: rgb(252, 0, 0);">${d.bloodGroup}</div>
 
-        <div style="position:absolute;left:37%;top:65%;font-size:14px;">লিঙ্গ</div>
-        <div style="position:absolute;left:55%;top:65%;font-size:14px;">${d.gender}</div>
+        <div style="position: absolute; left: 37%; top: 72.8%; font-size: 14px;">পেশা</div>
+        <div id="religion" style="position: absolute; left: 55%; top: 72.8%; font-size: 14px;">${d.occupation}</div>
 
-        <div style="position:absolute;left:37%;top:67.6%;font-size:14px;">জন্মস্থান</div>
-        <div style="position:absolute;left:55%;top:67.6%;font-size:14px;">${d.birthPlace}</div>
+        <div style="position: absolute; left: 37%; top: 75.8%; font-size: 16px;"><b>বর্তমান ঠিকানা</b></div>
+        <div id="present_address" style="position: absolute; left: 37%; top: 78.3%; width: 48%; font-size: 12px; text-align: left; white-space: normal;">${presentAddr}</div> 
 
-        <div style="position:absolute;left:37%;top:70.3%;font-size:14px;">রক্তের গ্রুপ</div>
-        <div style="position:absolute;left:55%;top:70.3%;font-size:14px;color:rgb(252,0,0);">${d.bloodGroup}</div>
+        <div style="position: absolute; left: 37%; top: 84.6%; font-size: 16px;"><b>স্থায়ী ঠিকানা</b></div>
+        <div id="permanent_address" style="position: absolute; left: 37%; top: 87.3%; width: 48%; font-size: 12px; text-align: left; white-space: normal;">${permanentAddr}</div>
+        <div style="position: absolute; top: 94%; width: 100%; font-size: 12px; text-align: center; color: rgb(255, 0, 0);">উপরে প্রদর্শিত তথ্যসমূহ জাতীয় পরিচয়পত্র সংশ্লিষ্ট, ভোটার তালিকার সাথে সরাসরি সম্পর্কযুক্ত নয়।</div>
+        <div style="position: absolute; top: 95.5%; width: 100%; text-align: center; font-size: 12px; color: rgb(3, 3, 3);">This is Software Generated Report From Bangladesh Election Commission, Signature &amp; Seal Aren't Required.</div>
 
-        <div style="position:absolute;left:37%;top:72.8%;font-size:14px;">পেশা</div>
-        <div style="position:absolute;left:55%;top:72.8%;font-size:14px;">${d.occupation}</div>
-
-        <div style="position:absolute;left:37%;top:75.8%;font-size:16px;"><b>বর্তমান ঠিকানা</b></div>
-        <div style="position:absolute;left:37%;top:78.3%;width:48%;font-size:12px;text-align:left;white-space:normal;">${presentAddr}</div>
-
-        <div style="position:absolute;left:37%;top:84.6%;font-size:16px;"><b>স্থায়ী ঠিকানা</b></div>
-        <div style="position:absolute;left:37%;top:87.3%;width:48%;font-size:12px;text-align:left;white-space:normal;">${permanentAddr}</div>
-
-        <div style="position:absolute;top:94%;width:100%;font-size:12px;text-align:center;color:rgb(255,0,0);">উপরে প্রদর্শিত তথ্যসমূহ জাতীয় পরিচয়পত্র সংশ্লিষ্ট, ভোটার তালিকার সাথে সরাসরি সম্পর্কযুক্ত নয়।</div>
-        <div style="position:absolute;top:95.5%;width:100%;text-align:center;font-size:12px;color:rgb(3,3,3);">This is Software Generated Report From Bangladesh Election Commission, Signature &amp; Seal Aren't Required.</div>
-
-        <div style="position:absolute;left:16%;top:25.8%;">
-            <img src="${d.photo}" height="140px" width="121px" style="border-radius:10px;" onerror="this.style.display='none'">
+        <div style="position: absolute; left: 16%; top: 25.8%;">
+            <img id="photo" src="${d.photo}" height="140px" width="121px" style="border-radius: 10px;" onerror="this.onerror=null; this.src='https://dakhila-ldtax-gov-bd.rf.gd/assets/media/card/blank.png';" />
         </div>
 
-        <div style="position:absolute;left:17.7%;top:44.2%;">
-            <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${qrData}" height="95px" width="95px">
+        <div style="position: absolute; left: 17.7%; top: 44.2%;">
+            <img id="qr" src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${qrData}" height="95px" width="95px">
         </div>
-
-        <div style="position:absolute;display:flex;font-weight:bold;left:15.5%;top:39.8%;height:32px;width:130px;font-size:13px;color:rgb(7,7,7);margin:auto;align-items:center;" align="center">
-            <div style="flex:1;">${d.nameEnglish}</div>
+        
+        <div id="name_en2" style="position: absolute; display: flex; font-weight: bold; left: 15.5%; top: 39.8%; height: 32px; width: 130px; font-size: 13px; color: rgb(7, 7, 7); margin: auto; align-items: center;" align="center">
+            <div style="flex: 1;">${d.nameEnglish}</div>
         </div>
-    </div>
-
-    <script>window.onload = function(){ setTimeout(wp, 500); }; function wp(){ window.print(); }</script>
+    </div> 
+    <script> window.onload = function(){setTimeout(wp, 500);}; function wp(){window.print();}</script>
     <button class="no-print" id="print-pdf-btn" onclick="window.print()">
         <i class="fas fa-file-pdf"></i> Save as PDF / Print
     </button>
-
 </body>
 </html>`;
 }
 
-// ── V2 — signToServerV2.php exact template ──
+// ── V2 — signtoserverv2 php exact recreation ──
 function buildHTMLv2(d) {
-  const presentAddr   = (d.presentAddress  || "").replace(/\n/g, "<br>");
-  const permanentAddr = (d.permanentAddress || "").replace(/\n/g, "<br>");
+  const presentAddrFormatted   = (d.presentAddress  || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
+  const permanentAddrFormatted = (d.permanentAddress || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
   const SITE = "https://dakhila-ldtax-gov-bd.rf.gd";
 
   return `<!DOCTYPE html>
@@ -597,236 +553,532 @@ function buildHTMLv2(d) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${d.nid} - ${d.nameEnglish}</title>
     <link href="https://fonts.maateen.me/solaiman-lipi/font.css" rel="stylesheet">
-    <link rel="stylesheet" href="${SITE}/assets/server/server_v1.css">
     <style>
-        p.text { line-height: 7px; }
+        body {
+            font-family: 'Solaiman Lipi', sans-serif;
+            margin: auto;
+            padding: 0;
+            background-color: #f4f4f9;
+            width: 210mm;
+            height: 297mm;
+        }
+
+        @page {
+            size: 210mm 297mm;
+        }
+
+        .container {
+            margin: auto;
+            background: white;
+            padding-left: 20px;
+            padding-right: 20px;
+        }
+
+        .section {
+            margin-bottom: 1px;
+        }
+
         .section-title {
-            font-size: 15px !important;
+            font-size: 17px;
             font-weight: bold;
-            margin-bottom: 3px;
+            background: #bbe6ed;
+            color: black;
+            padding: 5px;
         }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        colgroup col {
+            width: 30%;
+        }
+
+        colgroup col:last-child {
+            width: 70%;
+        }
+
+        table,
+        th,
         td {
-            font-size: 13.5px !important;
-            font-family: 'Solaimanlipi', sans-serif;
-            padding: 2px 5px !important;
+            border: 1px solid #EAEAEA;
         }
-        strong { font-weight: normal !important; }
-        body { font-family: 'Solaimanlipi', sans-serif; }
-        .sub_container { margin: 5px 0 !important; padding: 0 10px; }
-        .footer_text { margin-top: 5px !important; }
-        #print {
-            background: linear-gradient(45deg, #03a9f4, #1e88e5);
-            padding: 10px 20px;
-            width: auto; height: auto;
-            border: none;
-            font-size: 20px;
+
+        th,
+        td {
+            padding: 8px;
+            text-align: left;
+        }
+
+        table td:first-child {
             font-weight: bold;
-            cursor: pointer;
-            box-shadow: 2px 5px 10px rgba(0,0,0,0.2);
-            color: #fff;
-            border-radius: 25px;
-            margin: 25px auto 10px auto;
-            display: none;
-            text-transform: uppercase;
-            transition: all 0.3s ease-in-out;
-            letter-spacing: 1px;
+            color: #000;
         }
-        #print:hover {
-            background: linear-gradient(45deg, #1e88e5, #03a9f4);
-            transform: translateY(-5px) scale(1.05);
-            box-shadow: 2px 8px 15px rgba(0,0,0,0.3);
+
+        #footer_english {
+            text-align: center;
+            margin-top: -16px;
+            font-size: 13px;
+            font-weight: bold;
+            font-family: Arial;
+            letter-spacing: -0.2px;
         }
+
+        .sub_container {
+            padding-left: 40px;
+            padding-right: 40px;
+        }
+
+        .header_top {
+            text-align: center;
+            border-bottom: 1px solid #c2c2c2;
+        }
+
+        p.text {
+            line-height: 10px;
+        }
+
+        img#user_img {
+            width: 110px;
+            margin-top: 10px;
+            border-radius: 10px;
+            box-shadow: rgba(0, 0, 0, 0.35) 0px 2px 10px;
+            height: 120px;
+            margin-bottom: 20px;
+        }
+
+        .user_photo {
+            text-align: center;
+        }
+
         @media print {
-            .print { display: none !important; }
-            .container { margin: 0 !important; }
+            * {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            body {
+                margin: 0;
+                padding: 0;
+                background: white;
+            }
+            .section {
+                page-break-inside: avoid;
+            }
         }
-    </style>
+    </style> 
 </head>
 <body>
     <div class="container">
         <div class="header">
             <div class="header_top">
-                <img src="${SITE}/assets/server/img/logo-server-copy.svg" alt="" class="logo">
-                <p class="text_one text">বাংলাদেশ নির্বাচন কমিশন</p>
-                <p class="text_two text">নির্বাচন কমিশন সচিবালয়</p>
-                <p class="text_three text">জাতীয় পরিচয় নিবন্ধন অনুবিভাগ</p>
+                <img src="${SITE}/assets/server/img/logo-server-copy.svg" alt="" class="logo" style="width: 50px; margin-top: 10px;" onerror="this.onerror=null; this.src='https://surokkha.gov.bd/favicon.png';">
+                <p class="text_one text" style="font-weight: bold; font-size: 15px;">বাংলাদেশ নির্বাচন কমিশন</p>
+                <p class="text_two text" style="font-size: 13px;">নির্বাচন কমিশন সচিবালয়</p>
+                <p class="text_three text" style="font-size: 12px; margin-bottom: 10px;">জাতীয় পরিচয় নিবন্ধন অনুবিভাগ</p>
             </div>
             <div class="user_photo">
-                <img src="${d.photo}" alt="" id="user_img" onerror="this.style.display='none'">
+                <img src="${d.photo}" alt="" id="user_img" onerror="this.onerror=null; this.src='https://dakhila-ldtax-gov-bd.rf.gd/assets/media/card/blank.png';">
             </div>
         </div>
         <div class="sub_container">
             <div class="section">
                 <div class="section-title">জাতীয় পরিচিতি তথ্য</div>
                 <div class="section-content">
-                    <table><colgroup><col><col></colgroup>
-                        <tr><td>জাতীয় পরিচয় পত্র নম্বর</td><td><strong>${d.nid}</strong></td></tr>
-                        <tr><td>পিন নম্বর</td><td><strong>${d.pin}</strong></td></tr>
-                        <tr><td>ভোটার নম্বর</td><td><strong>${d.voterNo}</strong></td></tr>
-                        <tr><td>ভোটার এরিয়া কোড</td><td><strong>${d.voterAreaCode}</strong></td></tr>
-                        <tr><td>ভোটার এলাকা</td><td><strong>${d.voterArea}</strong></td></tr>
-                        <tr><td>ফরম নম্বর</td><td><strong>${d.oldNid}</strong></td></tr>
+                    <table>
+                        <colgroup>
+                            <col>
+                            <col>
+                        </colgroup>
+                        <tr><td>জাতীয় পরিচয় পত্র নম্বর</td><td><strong>${d.nid || "N/A"}</strong></td></tr>
+                        <tr><td>পিন নম্বর</td><td><strong>${d.pin || "N/A"}</strong></td></tr>
+                        <tr><td>ভোটার নম্বর</td><td><strong>${d.voterNo || "N/A"}</strong></td></tr>
+                        <tr><td>ভোটার এরিয়া কোড</td><td><strong>${d.voterAreaCode || "N/A"}</strong></td></tr>
+                        <tr><td>ভোটার এলাকা</td><td><strong>${d.voterArea || "N/A"}</strong></td></tr>
+                        <tr><td>ফরম নম্বর</td><td><strong>${d.oldNid || "N/A"}</strong></td></tr>
                         <tr><td>পিতার এনআইডি</td><td><strong>${d.fatherNID || "N/A"}</strong></td></tr>
                         <tr><td>মাতার এনআইডি</td><td><strong>${d.motherNID || "N/A"}</strong></td></tr>
                     </table>
                 </div>
             </div>
+
             <div class="section">
                 <div class="section-title">ব্যক্তিগত তথ্য</div>
                 <div class="section-content">
-                    <table><colgroup><col><col></colgroup>
-                        <tr><td>নাম (বাংলা)</td><td><strong>${d.nameBangla}</strong></td></tr>
-                        <tr><td>নাম (ইংরেজি)</td><td><strong>${d.nameEnglish}</strong></td></tr>
-                        <tr><td>জন্ম তারিখ</td><td><strong>${d.dob}</strong></td></tr>
-                        <tr><td>পিতার নাম</td><td><strong>${d.father}</strong></td></tr>
-                        <tr><td>মাতার নাম</td><td><strong>${d.mother}</strong></td></tr>
-                        <tr><td>স্বামী/স্ত্রীর নাম</td><td><strong>${d.spouse}</strong></td></tr>
+                    <table>
+                        <colgroup>
+                            <col>
+                            <col>
+                        </colgroup>
+                        <tr><td>নাম (বাংলা)</td><td><strong>${d.nameBangla || "N/A"}</strong></td></tr>
+                        <tr><td>নাম (ইংরেজি)</td><td><strong>${d.nameEnglish || "N/A"}</strong></td></tr>
+                        <tr><td>জন্ম তারিখ</td><td><strong>${d.dob || "N/A"}</strong></td></tr>
+                        <tr><td>পিতার নাম</td><td><strong>${d.father || "N/A"}</strong></td></tr>
+                        <tr><td>মাতার নাম</td><td><strong>${d.mother || "N/A"}</strong></td></tr>
+                        <tr><td>স্বামী/স্ত্রীর নাম</td><td><strong>${d.spouse || "N/A"}</strong></td></tr>
                     </table>
                 </div>
             </div>
+
             <div class="section">
                 <div class="section-title">অন্যান্য তথ্য</div>
                 <div class="section-content">
-                    <table><colgroup><col><col></colgroup>
-                        <tr><td>রক্তের গ্রুপ</td><td><strong>${d.bloodGroup}</strong></td></tr>
-                        <tr><td>পেশা</td><td><strong>${d.occupation}</strong></td></tr>
-                        <tr><td>শিক্ষাগত যোগ্যতা</td><td><strong>${d.education}</strong></td></tr>
-                        <tr><td>লিঙ্গ</td><td><strong>${d.gender}</strong></td></tr>
-                        <tr><td>ধর্ম</td><td><strong>${d.religion}</strong></td></tr>
-                        <tr><td>জন্মস্থান</td><td><strong>${d.birthPlace}</strong></td></tr>
+                    <table>
+                        <colgroup>
+                            <col>
+                            <col>
+                        </colgroup>
+                        <tr><td>রক্তের গ্রুপ</td><td><strong>${d.bloodGroup || "N/A"}</strong></td></tr>
+                        <tr><td>পেশা</td><td><strong>${d.occupation || "N/A"}</strong></td></tr>
+                        <tr><td>শিক্ষাগত যোগ্যতা</td><td><strong>${d.education || "N/A"}</strong></td></tr>
+                        <tr><td>লিঙ্গ</td><td><strong>${d.gender || "N/A"}</strong></td></tr>
+                        <tr><td>ধর্ম</td><td><strong>${d.religion || "N/A"}</strong></td></tr>
+                        <tr><td>জন্মস্থান</td><td><strong>${d.birthPlace || "N/A"}</strong></td></tr>
                     </table>
                 </div>
             </div>
+
             <div class="section">
                 <div class="section-title">বর্তমান ঠিকানা</div>
                 <div class="section-content">
-                    <table><colgroup><col></colgroup>
-                        <tr><td>${presentAddr}</td></tr>
+                    <table>
+                        <colgroup>
+                            <col>
+                        </colgroup>
+                        <tr><td>${presentAddrFormatted || "N/A"}</td></tr>
                     </table>
                 </div>
             </div>
+
             <div class="section">
                 <div class="section-title">স্থায়ী ঠিকানা</div>
                 <div class="section-content">
-                    <table><colgroup><col></colgroup>
-                        <tr><td>${permanentAddr}</td></tr>
+                    <table>
+                        <colgroup>
+                            <col>
+                        </colgroup>
+                        <tr><td>${permanentAddrFormatted || "N/A"}</td></tr>
                     </table>
                 </div>
             </div>
-            <div class="footer_text">
-                <p style="text-align:center;color:red;">উপরে প্রদর্শিত তথ্যসমূহ জাতীয় পরিচয়পত্র সংশ্লিষ্ট, ভোটার তালিকার সাথে সরাসরি সম্পর্কযুক্ত নয়।</p>
+
+            <div class="footer_text" style="margin-top: 15px;">
+                <p style="text-align: center; color: red; font-size: 13px;">উপরে প্রদর্শিত তথ্যসমূহ জাতীয় পরিচয়পত্র সংশ্লিষ্ট, ভোটার তালিকার সাথে সরাসরি সম্পর্কযুক্ত নয়।</p>
                 <p id="footer_english">This is Software Generated Report From Bangladesh Election Commission, Signature &amp; Seal Aren't Required.</p>
             </div>
         </div>
     </div>
-    <center>
-        <button class="print" id="print" onclick="window.print()">SAVE AS PDF / PRINT</button>
-    </center>
-    <script>
-        window.onload = function(){ setTimeout(function(){ wp(); document.getElementById("print").style.display="block"; }, 500); };
-        function wp(){ window.print(); }
-    </script>
 </body>
 </html>`;
 }
 
-// ── V3 — Green accent style ──
+// ── V3 — signtoserverv3 php exact recreation with contenteditable ──
 function buildHTMLv3(d) {
-  const photoSrc = d.photo
-    ? `<img src="${d.photo}" alt="ছবি" id="user_img" onerror="this.style.display='none'">`
-    : "";
+  const presentAddrFormatted   = (d.presentAddress  || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
+  const permanentAddrFormatted = (d.permanentAddress || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
+  const SITE = "https://dakhila-ldtax-gov-bd.rf.gd";
 
-  const v3css = SHARED_CSS + `
-    .section-title { background: #2d7a4f; color: white; }
-    .header_top { border-bottom: 3px solid #2d7a4f; }
-    table td:first-child { color: #2d7a4f; }
-    table tr:nth-child(even) { background: #f0fff4; }
-  `;
-
-  return `<!DOCTYPE html><html lang="bn"><head>
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
   <meta charset="UTF-8">
-  <title>v3_${d.nid}</title>
-  <style>${v3css}</style>
-</head><body>
-<div class="container">
-  <div class="header">
-    <div class="header_top">
-      <img src="https://dakhila-ldtax-gov-bd.rf.gd/assets/server/img/logo-server-copy.svg" alt="" class="logo">
-      <p class="text">বাংলাদেশ নির্বাচন কমিশন</p>
-      <p class="text">নির্বাচন কমিশন সচিবালয়</p>
-      <p class="text">জাতীয় পরিচয় নিবন্ধন অনুবিভাগ</p>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${d.nid} - ${d.nameEnglish}</title>
+  <link href="https://fonts.maateen.me/solaiman-lipi/font.css" rel="stylesheet">
+  <style>
+    body {
+        font-family: 'Solaiman Lipi', sans-serif;
+        margin: auto;
+        padding: 0;
+        background-color: #f4f4f9;
+        width: 210mm;
+        height: 297mm;
+    }
+
+    @page {
+        size: 210mm 297mm;
+    }
+
+    .container {
+        margin: auto;
+        background: white;
+        padding-left: 20px;
+        padding-right: 20px;
+    }
+
+    .section {
+        background-color: #bbe6ed; 
+    }
+
+    .section-title {
+        font-size: 16px!important;
+        font-family: 'Solaiman Lipi', sans-serif;
+        font-weight: bold;
+        background: #bbe6ed;
+        color: black;
+        padding: 5px;
+    }
+    td {
+        font-size: 14.5px!important;
+        font-family: 'Solaiman Lipi', sans-serif;
+        padding: 2px 5px !important; 
+    }  
+    strong {
+        font-weight: normal!important;
+    }
+    body {
+        font-family: 'Solaiman Lipi', sans-serif;
+    }
+
+    /* sub_container padding */
+    .sub_container {
+        padding-left: 100px;
+        padding-right: 100px;
+    }
+
+    .header_top {
+        text-align: center;
+        border-bottom: 1px solid #c2c2c2;
+    }
+
+    p.text {
+        line-height: 10px;
+    }
+
+    img#user_img {
+        width: 110px;
+        margin-top: 1px;
+        border-radius: 10px;
+        box-shadow: rgba(0, 0, 0, 0.35) 0px 2px 10px;
+        height: 120px;
+    }
+
+    .name {
+        border: 1px solid #eaeaea;
+        padding: 1px;
+        font-size: 15px;
+        font-weight: bold;
+    }
+
+    .user_photo {
+        text-align: center;
+        margin-top: 5px;
+        background-color: #bbe6ed;
+        margin-bottom: 8px;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+
+    colgroup col {
+        width: 30%;
+    }
+
+    colgroup col:last-child {
+        width: 70%;
+    }
+
+    table, th, td {
+        border: 1px solid #EAEAEA;
+    }
+
+    th, td {
+        padding: 6px;
+        text-align: left;
+    }
+
+    table td:first-child {
+        color: #000;
+    }
+
+    #footer_english {
+        text-align: center;
+        margin-top: -16px;
+        font-size: 13px;
+        font-weight: bold;
+        font-family: Arial;
+        letter-spacing: -0.2px;
+    }
+
+    /* এডিট করার সময় বর্ডার হাইলাইট */
+    [contenteditable="true"]:focus {
+        outline: 1px dashed #007bff;
+        background: #f9f9f9;
+    }
+
+    @media print {
+        * {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .print {
+            display: none !important;
+        }
+        .container {
+            margin: 0 !important;
+        }
+        /* প্রিন্ট করার সময় যেন এডিট বর্ডার না আসে */
+        [contenteditable="true"]:focus {
+            outline: none;
+        }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="sub_container">
+      <div class="header">
+        <div class="header_top">
+          <img src="${SITE}/assets/server/img/logo-server-copy.svg" alt="" class="logo" style="width: 50px; margin-top: 10px;" onerror="this.onerror=null; this.src='https://surokkha.gov.bd/favicon.png';"> 
+          <p class="text_one text" contenteditable="true" style="font-weight: bold; font-size: 15px;">বাংলাদেশ নির্বাচন কমিশন</p>
+          <p class="text_two text" contenteditable="true" style="font-size: 13px;">নির্বাচন কমিশন সচিবালয়</p>
+          <p class="text_three text" contenteditable="true" style="font-size: 12px; margin-bottom: 10px;">জাতীয় পরিচয় নিবন্ধন অনুবিভাগ</p>
+        </div>
+        <div class="user_photo">
+          <img src="${d.photo}" alt="" id="user_img" onerror="this.onerror=null; this.src='https://dakhila-ldtax-gov-bd.rf.gd/assets/media/card/blank.png';"> 
+          <div class="name" contenteditable="true" style="margin-top: 5px;">${d.nameEnglish}</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title" contenteditable="true">জাতীয় পরিচিতি তথ্য</div>
+        <div class="section-content">
+          <table>
+            <colgroup>
+              <col>
+              <col>
+            </colgroup>
+            <tr>
+              <td contenteditable="true">জাতীয় পরিচয় পত্র নম্বর</td>
+              <td contenteditable="true"><strong>${d.nid || "N/A"}</strong></td>
+            </tr>
+            <tr>
+              <td contenteditable="true">পিন নম্বর</td>
+              <td contenteditable="true"><strong>${d.pin || "N/A"}</strong></td>
+            </tr>
+            <tr>
+              <td contenteditable="true">পূর্ববর্তী এনআইডি নম্বর</td>
+              <td contenteditable="true"><strong>${d.oldNid || "N/A"}</strong></td>
+            </tr>
+            <tr>
+              <td contenteditable="true">জন্ম নিবন্ধন নম্বর</td>
+              <td contenteditable="true"><strong>${d.voterNo || "N/A"}</strong></td>
+            </tr>
+            <tr>
+              <td contenteditable="true">ভোটার এলাকা</td>
+              <td contenteditable="true"><strong>${d.voterArea || "N/A"}</strong></td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title" contenteditable="true">ব্যক্তিগত তথ্য</div>
+        <div class="section-content">
+          <table>
+            <colgroup>
+              <col>
+              <col>
+            </colgroup>
+            <tr>
+              <td contenteditable="true">নাম (বাংলা)</td>
+              <td contenteditable="true"><strong>${d.nameBangla || "N/A"}</strong></td>
+            </tr>
+            <tr>
+              <td contenteditable="true">নাম (ইংরেজি)</td>
+              <td contenteditable="true"><strong>${d.nameEnglish || "N/A"}</strong></td>
+            </tr>
+            <tr>
+              <td contenteditable="true">জন্ম তারিখ</td>
+              <td contenteditable="true"><strong>${d.dob || "N/A"}</strong></td>
+            </tr>
+            <tr>
+              <td contenteditable="true">পিতার নাম</td>
+              <td contenteditable="true"><strong>${d.father || "N/A"}</strong></td>
+            </tr>
+            <tr>
+              <td contenteditable="true">মাতার নাম</td>
+              <td contenteditable="true"><strong>${d.mother || "N/A"}</strong></td>
+            </tr>
+            <tr>
+              <td contenteditable="true">স্বামী/স্ত্রীর নাম</td>
+              <td contenteditable="true"><strong>${d.spouse || "N/A"}</strong></td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title" contenteditable="true">অন্যান্য তথ্য</div>
+        <div class="section-content">
+          <table>
+            <colgroup>
+              <col>
+              <col>
+            </colgroup>
+            <tr>
+              <td contenteditable="true">পেশা</td>
+              <td contenteditable="true"><strong>${d.occupation || "N/A"}</strong></td>
+            </tr>
+            <tr>
+              <td contenteditable="true">রক্তের গ্রুপ</td>
+              <td contenteditable="true"><strong>${d.bloodGroup || "N/A"}</strong></td>
+            </tr>
+            <tr>
+              <td contenteditable="true">ধর্ম</td>
+              <td contenteditable="true"><strong>${d.religion || "N/A"}</strong></td>
+            </tr>
+            <tr>
+              <td contenteditable="true">লিঙ্গ</td>
+              <td contenteditable="true"><strong>${d.gender || "N/A"}</strong></td>
+            </tr>
+            <tr>
+              <td contenteditable="true">শিক্ষাগত যোগ্যতা</td>
+              <td contenteditable="true"><strong>${d.education || "N/A"}</strong></td>
+            </tr>
+            <tr>
+              <td contenteditable="true">জন্মস্থান</td>
+              <td contenteditable="true"><strong>${d.birthPlace || "N/A"}</strong></td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title" contenteditable="true">বর্তমান ঠিকানা</div>
+        <div class="section-content">
+          <table>
+            <colgroup>
+              <col>
+            </colgroup>
+            <tr><td contenteditable="true">${presentAddrFormatted || "N/A"}</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title" contenteditable="true">স্থায়ী ঠিকানা</div>
+        <div class="section-content">
+          <table>
+            <colgroup>
+              <col>
+            </colgroup>
+            <tr><td contenteditable="true">${permanentAddrFormatted || "N/A"}</td></tr>
+          </table>
+        </div>
+      </div>
     </div>
-    <div class="user_photo">${photoSrc}</div>
+    <div class="footer_text" style="margin-top: 15px;">
+      <p style="text-align: center; color: red; font-size: 13px;" contenteditable="true">উপরে প্রদর্শিত তথ্যসমূহ জাতীয় পরিচয়পত্র সংশ্লিষ্ট, ভোটার তালিকার সাথে সরাসরি সম্পর্কযুক্ত নয়।</p>
+      <p id="footer_english" contenteditable="true">This is Software Generated Report From Bangladesh Election Commission, Signature &amp; Seal Aren't Required.</p>
+    </div>
   </div>
-  <div class="sub_container">
-    <div class="section">
-      <div class="section-title">জাতীয় পরিচিতি তথ্য</div>
-      <div class="section-content">
-        <table><colgroup><col><col></colgroup>
-          ${row("জাতীয় পরিচয় পত্র নম্বর", toBn(d.nid))}
-          ${row("পিন নম্বর", toBn(d.pin))}
-          ${row("পূর্ববর্তী এনআইডি নম্বর", toBn(d.oldNid))}
-          ${row("ভোটার নম্বর", toBn(d.voterNo))}
-          ${row("উপজেলা কোড", toBn(d.upazilaCode))}
-          ${row("ভোটার এলাকা", d.voterArea)}
-          ${row("ভোটার এরিয়া কোড", toBn(d.voterAreaCode))}
-          ${row("ভোটার সিরিয়াল নম্বর", toBn(d.slNo))}
-          ${row("পিতার এনআইডি", toBn(d.fatherNID))}
-          ${row("মাতার এনআইডি", toBn(d.motherNID))}
-        </table>
-      </div>
-    </div>
-    <div class="section">
-      <div class="section-title">ব্যক্তিগত তথ্য</div>
-      <div class="section-content">
-        <table><colgroup><col><col></colgroup>
-          ${row("নাম (বাংলা)", d.nameBangla)}
-          ${row("নাম (ইংরেজি)", d.nameEnglish)}
-          ${row("জন্ম তারিখ", formatDateBn(d.dob))}
-          ${row("পিতার নাম", d.father)}
-          ${row("মাতার নাম", d.mother)}
-          ${row("স্বামী/স্ত্রীর নাম", d.spouse)}
-        </table>
-      </div>
-    </div>
-    <div class="section">
-      <div class="section-title">অন্যান্য তথ্য</div>
-      <div class="section-content">
-        <table><colgroup><col><col></colgroup>
-          ${row("রক্তের গ্রুপ", d.bloodGroup)}
-          ${row("পেশা", d.occupation)}
-          ${row("শিক্ষাগত যোগ্যতা", d.education)}
-          ${row("লিঙ্গ", d.gender)}
-          ${row("ধর্ম", d.religion)}
-          ${row("জন্মবার", d.birthDay)}
-          ${row("বয়স", d.age ? toBn(d.age) : "")}
-          ${row("জন্মস্থান", d.birthPlace)}
-        </table>
-      </div>
-    </div>
-    <div class="section">
-      <div class="section-title">বর্তমান ঠিকানা</div>
-      <div class="section-content">
-        <table><colgroup><col></colgroup>
-          <tr><td>${d.presentAddress || "—"}</td></tr>
-        </table>
-      </div>
-    </div>
-    <div class="section">
-      <div class="section-title">স্থায়ী ঠিকানা</div>
-      <div class="section-content">
-        <table><colgroup><col></colgroup>
-          <tr><td>${d.permanentAddress || "—"}</td></tr>
-        </table>
-      </div>
-    </div>
-    <div class="footer_text">
-      <p>উপরে প্রদর্শিত তথ্যসমূহ জাতীয় পরিচয়পত্র সংশ্লিষ্ট, ভোটার তালিকার সাথে সরাসরি সম্পর্কযুক্ত নয়।</p>
-      <p id="footer_english">This is Software Generated Report From Bangladesh Election Commission, Signature &amp; Seal Aren't Required.</p>
-    </div>
-  </div>
-</div>
-</body></html>`;
+</body>
+</html>`;
 }
 
 function buildHTML(version, data) {
@@ -849,10 +1101,7 @@ async function convertHTMLtoPDF(html) {
 
 // ─────────────────── PROCESS: PDF → Card → Send ────────────────
 async function processNIDCard(from, data, version, msgId) {
-  // ✅ markRead এখন processing শুরুর আগেই — blue tick দ্রুত দেখাবে
   if (msgId) markRead(msgId);
-
-  await sendText(from, `⏳ Version ${version} কার্ড তৈরি হচ্ছে...`);
 
   const html      = buildHTML(version, data);
   const pdfBuffer = await convertHTMLtoPDF(html);
@@ -860,21 +1109,26 @@ async function processNIDCard(from, data, version, msgId) {
   recordStat(from);
   backupData();
 
-  const filename = `nid-v${version}-${data.nid || Date.now()}.pdf`;
-  const price    = getSettings().cardPrice || 0;
-  const defVer   = getUserDefaultVersion(from);
-  const caption  = [
+  const safeName = (data.nameEnglish || data.nameBangla || "NID").replace(/[/\\?%*:|"<>]/g, "").trim();
+  const filename  = `${data.nid || Date.now()} - ${safeName}.pdf`;
+
+  const price  = getSettings().cardPrice || 0;
+  const defVer = getUserDefaultVersion(from);
+
+  const captionLines = [
     `✅ NID Card (Version ${version}) তৈরি হয়েছে!`,
     ``,
     `👤 নাম: ${data.nameBangla || data.nameEnglish}`,
     `🆔 NID: ${toBn(data.nid)}`,
-    `🎂 DOB: ${formatDateBn(data.dob)}`,
+    `🎂 DOB: ${data.dob}`,
     price > 0 ? `💰 Remaining: ${getUserBalance(from)} টাকা` : "",
     defVer > 0 ? `⚙️ Default Version: V${defVer}` : "💡 .setversion v1 দিলে পরে auto তৈরি হবে",
   ].filter(Boolean).join("\n");
 
   const mediaId = await uploadMedia(pdfBuffer, filename, "application/pdf");
-  await sendDocument(from, mediaId, filename, caption);
+
+  await sendText(from, captionLines);
+  await sendDocument(from, mediaId, filename, "");
 
   clearPending(from);
   console.log(`✅ Card sent to ${from} — V${version} — NID: ${data.nid}`);
@@ -885,13 +1139,10 @@ async function handleIncoming(msg, contact) {
   const from  = msg.from;
   const msgId = msg.id;
 
-  // ── TEXT MESSAGE ──
   if (msg.type === "text") {
     const rawText = msg.text.body.trim();
     const text    = rawText.toLowerCase();
 
-    // ── .setversion command ──
-    // Usage: .setversion v1 / .setversion v2 / .setversion v3 / .setversion off
     if (text.startsWith(".setversion") || text.startsWith("setversion")) {
       markRead(msgId);
       if (!isAllowed(from)) return sendText(from, "❌ আপনি authorized নন।");
@@ -917,7 +1168,6 @@ async function handleIncoming(msg, contact) {
       }
     }
 
-    // ping / status
     if (text === ".ping" || text === "ping") {
       markRead(msgId);
       return sendText(from, "🟢 Pong! Bot সচল আছে।");
@@ -934,7 +1184,6 @@ async function handleIncoming(msg, contact) {
       );
     }
 
-    // help
     if (text === ".help" || text === "help") {
       markRead(msgId);
       return sendText(from,
@@ -949,7 +1198,6 @@ async function handleIncoming(msg, contact) {
       );
     }
 
-    // V1/V2/V3 text fallback
     const vMap = {
       "v1": 1, "1": 1, "ভার্সন ১": 1, "version 1": 1,
       "v2": 2, "2": 2, "ভার্সন ২": 2, "version 2": 2,
@@ -971,7 +1219,6 @@ async function handleIncoming(msg, contact) {
     );
   }
 
-  // ── INTERACTIVE BUTTON REPLY (V1/V2/V3 choice) ──
   if (msg.type === "interactive" && msg.interactive?.type === "button_reply") {
     const buttonId = msg.interactive.button_reply.id;
     const pending  = getPending(from);
@@ -993,11 +1240,8 @@ async function handleIncoming(msg, contact) {
       .catch(e => sendText(from, `❌ Error: ${e.message}`));
   }
 
-  // ── DOCUMENT (PDF) ──
   if (msg.type === "document") {
     const doc = msg.document;
-
-    // ✅ markRead প্রথমেই — blue tick দ্রুত
     markRead(msgId);
 
     if (!doc.mime_type?.includes("pdf")) {
@@ -1009,8 +1253,6 @@ async function handleIncoming(msg, contact) {
 
     const defVersion = getUserDefaultVersion(from);
 
-    await sendText(from, "⏳ PDF প্রক্রিয়াকরণ চলছে...");
-
     try {
       const { buffer } = await downloadMedia(doc.id);
       const data       = await extractNIDFromPDF(buffer);
@@ -1019,18 +1261,16 @@ async function handleIncoming(msg, contact) {
         throw new Error("NID তথ্য extract করা সম্ভব হয়নি।");
       }
 
-      // Default version আছে → সরাসরি process
       if (defVersion > 0) {
         const price = getSettings().cardPrice || 0;
         if (price > 0 && !deductBalance(from)) {
           return sendText(from, `❌ Balance কম! ${price} টাকা দরকার।`);
         }
-        setPending(from, data); // pending এ রাখো (clear হবে process এর পরে)
+        setPending(from, data);
         return processNIDCard(from, data, defVersion, null)
           .catch(e => sendText(from, `❌ Error: ${e.message}`));
       }
 
-      // Default নেই → version choice দেখাও
       setPending(from, data);
       await sendVersionChoice(from, data.nameBangla || data.nameEnglish || "অজানা", data.nid || "N/A", 0);
     } catch (err) {
@@ -1057,7 +1297,7 @@ app.get("/webhook", (req, res) => {
 });
 
 app.post("/webhook", async (req, res) => {
-  res.sendStatus(200); // WhatsApp কে সাথে সাথে 200 দাও
+  res.sendStatus(200);
   try {
     const entry    = req.body.entry?.[0];
     const change   = entry?.changes?.[0]?.value;
@@ -1132,7 +1372,7 @@ app.get("/admin", adminAuth, (req, res) => {
       <td>
         <form method="POST" action="/admin/recharge" style="display:inline;white-space:nowrap">
           <input type="hidden" name="number" value="${u.number}"/>
-          <input name="amount" placeholder="টাকা" type="number" style="width:65px;padding:3px"/>
+          <input name="amount" placeholder="টাকা" type="number" style="width:65px;padding:3px" required/>
           <button name="type" value="add"    style="background:#28a745;color:#fff;border:0;padding:4px 8px;border-radius:3px;cursor:pointer">+Add</button>
           <button name="type" value="remove" style="background:#dc3545;color:#fff;border:0;padding:4px 8px;border-radius:3px;cursor:pointer">-Remove</button>
         </form>
@@ -1244,7 +1484,6 @@ app.post("/admin/recharge", adminAuth, (req, res) => {
   res.redirect("/admin");
 });
 
-// Admin থেকে default version set
 app.post("/admin/setversion", adminAuth, (req, res) => {
   const users = getUsers();
   const i = users.findIndex(u => normalizeNumber(u.number) === normalizeNumber(req.body.number));
@@ -1279,7 +1518,6 @@ app.post("/admin/backup", adminAuth, async (req, res) => {
   res.redirect("/admin");
 });
 
-// ────────────────────── STARTUP ─────────────────────────────────
 function cleanupOldFiles() {
   try {
     const tenMin = 10 * 60 * 1000;
@@ -1290,7 +1528,6 @@ function cleanupOldFiles() {
   } catch {}
 }
 
-// Pending expire — 15 মিনিট
 setInterval(() => {
   const limit = 15 * 60 * 1000;
   for (const [num, p] of pendingChoices.entries()) {
@@ -1302,15 +1539,12 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 (async () => {
-  await restoreData();
+  try {
+    await restoreData();
+  } catch(e) { console.error("Restore failed:", e.message); }
   cleanupOldFiles();
 
-  app.listen(CONFIG.PORT, () => {
+  app.listen(CONFIG.PORT, "0.0.0.0", () => {
     console.log(`🚀 NID Bot running on port ${CONFIG.PORT}`);
-    console.log(`📡 Webhook: ${CONFIG.BASE_URL}/webhook`);
-    console.log(`🔐 Admin:   ${CONFIG.BASE_URL}/admin`);
   });
-
-  // Self-ping (Render sleep prevention)
-  setInterval(() => { axios.get(CONFIG.BASE_URL).catch(() => {}); }, 14 * 60 * 1000);
 })();
