@@ -404,194 +404,330 @@ const SHARED_CSS = `
   }
 `;
 
-// ── V1 — Standard ──
+// ── V1 — signToServerV1.php exact template ──
 function buildHTMLv1(d) {
-  const photoSrc = d.photo
-    ? `<img src="${d.photo}" alt="ছবি" id="user_img" onerror="this.style.display='none'">`
-    : "";
+  const presentAddr  = (d.presentAddress  || "").replace(/\n/g, "<br>");
+  const permanentAddr = (d.permanentAddress || "").replace(/\n/g, "<br>");
+  const qrData = encodeURIComponent(`${d.nameEnglish} ${d.nid} ${d.dob}`);
 
-  return `<!DOCTYPE html><html lang="bn"><head>
-  <meta charset="UTF-8">
-  <title>v1_${d.nid}</title>
-  <style>${SHARED_CSS}</style>
-</head><body>
-<div class="container">
-  <div class="header">
-    <div class="header_top">
-      <img src="https://dakhila-ldtax-gov-bd.rf.gd/assets/server/img/logo-server-copy.svg" alt="" class="logo">
-      <p class="text">বাংলাদেশ নির্বাচন কমিশন</p>
-      <p class="text">নির্বাচন কমিশন সচিবালয়</p>
-      <p class="text">জাতীয় পরিচয় নিবন্ধন অনুবিভাগ</p>
+  return `<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>${d.nid} - ${d.nameEnglish}</title>
+    <link href="https://surokkha.gov.bd/favicon.png" rel="icon">
+    <link rel="stylesheet" href="https://site-assets.fontawesome.com/releases/v6.1.1/css/all.css">
+    <style>
+        @import url('https://fonts.maateen.me/solaiman-lipi/font.css');
+        @page { size: A4; margin: 0; }
+        body {
+            margin: 0;
+            font-family: 'Solaimanlipi', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 10vh;
+            background-color: #f0f0f0;
+        }
+        .printable-container {
+            width: 750px;
+            height: 1000px;
+            position: relative;
+            box-shadow: 0;
+            margin: 10px 0;
+            flex-shrink: 0;
+            background-color: lightgrey;
+        }
+        .background { position: relative; width: 100%; height: 100%; }
+        .crane { max-width: 100%; height: 100%; }
+        #print-pdf-btn {
+            background: linear-gradient(45deg, #FF5722, #FF9800);
+            padding: 10px 20px;
+            width: auto;
+            height: auto;
+            border: none;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 2px 5px 10px rgba(0,0,0,0.2);
+            color: #fff;
+            border-radius: 25px;
+            margin: 25px;
+            display: block;
+            text-transform: uppercase;
+            transition: all 0.3s ease-in-out;
+            letter-spacing: 1px;
+        }
+        #print-pdf-btn:hover {
+            background: linear-gradient(45deg, #FF9800, #FF5722);
+            transform: translateY(-5px) scale(1.05);
+            box-shadow: 2px 8px 15px rgba(0,0,0,0.3);
+        }
+        @media print {
+            html, body {
+                width: 210mm !important;
+                height: 297mm !important;
+                background-color: #ffffff !important;
+                margin: 0; padding: 0;
+                zoom: 100%;
+                -webkit-print-color-adjust: exact;
+                color-adjust: exact;
+            }
+            .print-only { display: block !important; }
+            .no-print { display: none !important; }
+            @page { margin-top: 0mm; margin-bottom: 0mm; }
+            .printable-container {
+                width: 205mm;
+                height: 295mm;
+                page-break-after: avoid;
+                margin: 0mm;
+                overflow: hidden;
+            }
+            .crane { width: 100%; height: 100%; display: block; }
+        }
+    </style>
+</head>
+<body style="text-align: center;">
+
+    <div class="no-print" style="padding: 10px; font-weight: bold; background-color: #fff3cd; border: 1px solid #ffc107; margin-bottom: 20px;"></div>
+
+    <div class="printable-container">
+        <img class="crane" src="https://dakhila-ldtax-gov-bd.rf.gd/assets/images/server_unofficialV1.jpg" height="1000px" width="750px">
+
+        <div style="position:absolute;left:30%;top:8%;width:auto;font-size:16px;color:rgb(255 224 0);"><b>National Identity Registration Wing (NIDW)</b></div>
+        <div style="position:absolute;left:37%;top:11%;width:auto;font-size:14px;color:rgb(255,47,161);"><b>Select Your Search Category</b></div>
+        <div style="position:absolute;left:45%;top:12.8%;width:auto;font-size:12px;color:rgb(8,121,4);">Search By NID / Voter No.</div>
+        <div style="position:absolute;left:45%;top:14.3%;width:auto;font-size:12px;color:rgb(7,119,184);">Search By Form No.</div>
+        <div style="position:absolute;left:30%;top:16.9%;width:auto;font-size:12px;color:rgb(252,0,0);"><b>NID or Voter No*</b></div>
+        <div style="position:absolute;left:45%;top:16.9%;width:auto;font-size:12px;color:rgb(143,143,143);">${d.nid}</div>
+        <div style="position:absolute;left:62.9%;top:17.1%;width:auto;font-size:11px;color:rgb(255 255 255);">Submit</div>
+        <div style="position:absolute;left:89%;top:11.55%;width:auto;font-size:11px;color:#fff;">Home</div>
+
+        <div style="position:absolute;left:37%;top:27%;font-size:16px;"><b>জাতীয় পরিচিতি তথ্য</b></div>
+        <div style="position:absolute;left:37%;top:29.7%;font-size:13px;">জাতীয় পরিচয় পত্র নম্বর</div>
+        <div style="position:absolute;left:55%;top:29.7%;font-size:14px;">${d.nid}</div>
+
+        <div style="position:absolute;left:37%;top:32.5%;font-size:13px;">পিন নম্বর</div>
+        <div style="position:absolute;left:55%;top:32.5%;font-size:14px;">${d.pin}</div>
+
+        <div style="position:absolute;left:37%;top:35%;font-size:13px;">ফরম নাম্বার</div>
+        <div style="position:absolute;left:55%;top:35%;font-size:14px;">${d.oldNid}</div>
+
+        <div style="position:absolute;left:37%;top:37.5%;font-size:14px;">ভোটার নাম্বার</div>
+        <div style="position:absolute;left:55%;top:37.5%;font-size:14px;">${d.voterNo}</div>
+
+        <div style="position:absolute;left:37%;top:40.2%;font-size:14px;">ভোটার এলাকা</div>
+        <div style="position:absolute;left:55%;top:40.2%;font-size:14px;">${d.voterArea}</div>
+
+        <div style="position:absolute;left:37%;top:43%;font-size:16px;"><b>ব্যক্তিগত তথ্য</b></div>
+        <div style="position:absolute;left:37%;top:45.6%;font-size:14px;">নাম (বাংলা)</div>
+        <div style="position:absolute;left:55%;top:45.6%;font-size:14px;"><b>${d.nameBangla}</b></div>
+
+        <div style="position:absolute;left:37%;top:48.5%;font-size:14px;">নাম (ইংরেজি)</div>
+        <div style="position:absolute;left:55%;top:48.5%;font-size:14px;">${d.nameEnglish}</div>
+
+        <div style="position:absolute;left:37%;top:51%;font-size:14px;">জন্ম তারিখ</div>
+        <div style="position:absolute;left:55%;top:51%;font-size:14px;">${d.dob}</div>
+
+        <div style="position:absolute;left:37%;top:53.7%;font-size:14px;">পিতার নাম</div>
+        <div style="position:absolute;left:55%;top:53.7%;font-size:14px;">${d.father}</div>
+
+        <div style="position:absolute;left:37%;top:56.2%;font-size:14px;">মাতার নাম</div>
+        <div style="position:absolute;left:55%;top:56.2%;font-size:14px;">${d.mother}</div>
+
+        <div style="position:absolute;left:37%;top:59%;font-size:14px;">স্বামী/স্ত্রীর নাম</div>
+        <div style="position:absolute;left:55%;top:59%;font-size:14px;">${d.spouse}</div>
+
+        <div style="position:absolute;left:37%;top:61.8%;font-size:16px;"><b>অন্যান্য তথ্য</b></div>
+
+        <div style="position:absolute;left:37%;top:65%;font-size:14px;">লিঙ্গ</div>
+        <div style="position:absolute;left:55%;top:65%;font-size:14px;">${d.gender}</div>
+
+        <div style="position:absolute;left:37%;top:67.6%;font-size:14px;">জন্মস্থান</div>
+        <div style="position:absolute;left:55%;top:67.6%;font-size:14px;">${d.birthPlace}</div>
+
+        <div style="position:absolute;left:37%;top:70.3%;font-size:14px;">রক্তের গ্রুপ</div>
+        <div style="position:absolute;left:55%;top:70.3%;font-size:14px;color:rgb(252,0,0);">${d.bloodGroup}</div>
+
+        <div style="position:absolute;left:37%;top:72.8%;font-size:14px;">পেশা</div>
+        <div style="position:absolute;left:55%;top:72.8%;font-size:14px;">${d.occupation}</div>
+
+        <div style="position:absolute;left:37%;top:75.8%;font-size:16px;"><b>বর্তমান ঠিকানা</b></div>
+        <div style="position:absolute;left:37%;top:78.3%;width:48%;font-size:12px;text-align:left;white-space:normal;">${presentAddr}</div>
+
+        <div style="position:absolute;left:37%;top:84.6%;font-size:16px;"><b>স্থায়ী ঠিকানা</b></div>
+        <div style="position:absolute;left:37%;top:87.3%;width:48%;font-size:12px;text-align:left;white-space:normal;">${permanentAddr}</div>
+
+        <div style="position:absolute;top:94%;width:100%;font-size:12px;text-align:center;color:rgb(255,0,0);">উপরে প্রদর্শিত তথ্যসমূহ জাতীয় পরিচয়পত্র সংশ্লিষ্ট, ভোটার তালিকার সাথে সরাসরি সম্পর্কযুক্ত নয়।</div>
+        <div style="position:absolute;top:95.5%;width:100%;text-align:center;font-size:12px;color:rgb(3,3,3);">This is Software Generated Report From Bangladesh Election Commission, Signature &amp; Seal Aren't Required.</div>
+
+        <div style="position:absolute;left:16%;top:25.8%;">
+            <img src="${d.photo}" height="140px" width="121px" style="border-radius:10px;" onerror="this.style.display='none'">
+        </div>
+
+        <div style="position:absolute;left:17.7%;top:44.2%;">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${qrData}" height="95px" width="95px">
+        </div>
+
+        <div style="position:absolute;display:flex;font-weight:bold;left:15.5%;top:39.8%;height:32px;width:130px;font-size:13px;color:rgb(7,7,7);margin:auto;align-items:center;" align="center">
+            <div style="flex:1;">${d.nameEnglish}</div>
+        </div>
     </div>
-    <div class="user_photo">${photoSrc}</div>
-  </div>
-  <div class="sub_container">
-    <div class="section">
-      <div class="section-title">জাতীয় পরিচিতি তথ্য</div>
-      <div class="section-content">
-        <table><colgroup><col><col></colgroup>
-          ${row("জাতীয় পরিচয় পত্র নম্বর", toBn(d.nid))}
-          ${row("পিন নম্বর", toBn(d.pin))}
-          ${row("পূর্ববর্তী এনআইডি নম্বর", toBn(d.oldNid))}
-          ${row("ভোটার নম্বর", toBn(d.voterNo))}
-          ${row("উপজেলা কোড", toBn(d.upazilaCode))}
-          ${row("ভোটার এলাকা", d.voterArea)}
-          ${row("ভোটার এরিয়া কোড", toBn(d.voterAreaCode))}
-          ${row("ভোটার সিরিয়াল নম্বর", toBn(d.slNo))}
-          ${row("পিতার এনআইডি", toBn(d.fatherNID))}
-          ${row("মাতার এনআইডি", toBn(d.motherNID))}
-        </table>
-      </div>
-    </div>
-    <div class="section">
-      <div class="section-title">ব্যক্তিগত তথ্য</div>
-      <div class="section-content">
-        <table><colgroup><col><col></colgroup>
-          ${row("নাম (বাংলা)", d.nameBangla)}
-          ${row("নাম (ইংরেজি)", d.nameEnglish)}
-          ${row("জন্ম তারিখ", formatDateBn(d.dob))}
-          ${row("পিতার নাম", d.father)}
-          ${row("মাতার নাম", d.mother)}
-          ${row("স্বামী/স্ত্রীর নাম", d.spouse)}
-        </table>
-      </div>
-    </div>
-    <div class="section">
-      <div class="section-title">অন্যান্য তথ্য</div>
-      <div class="section-content">
-        <table><colgroup><col><col></colgroup>
-          ${row("রক্তের গ্রুপ", d.bloodGroup)}
-          ${row("পেশা", d.occupation)}
-          ${row("শিক্ষাগত যোগ্যতা", d.education)}
-          ${row("লিঙ্গ", d.gender)}
-          ${row("ধর্ম", d.religion)}
-          ${row("জন্মবার", d.birthDay)}
-          ${row("বয়স", d.age ? toBn(d.age) : "")}
-          ${row("জন্মস্থান", d.birthPlace)}
-        </table>
-      </div>
-    </div>
-    <div class="section">
-      <div class="section-title">বর্তমান ঠিকানা</div>
-      <div class="section-content">
-        <table><colgroup><col></colgroup>
-          <tr><td>${d.presentAddress || "—"}</td></tr>
-        </table>
-      </div>
-    </div>
-    <div class="section">
-      <div class="section-title">স্থায়ী ঠিকানা</div>
-      <div class="section-content">
-        <table><colgroup><col></colgroup>
-          <tr><td>${d.permanentAddress || "—"}</td></tr>
-        </table>
-      </div>
-    </div>
-    <div class="footer_text">
-      <p>উপরে প্রদর্শিত তথ্যসমূহ জাতীয় পরিচয়পত্র সংশ্লিষ্ট, ভোটার তালিকার সাথে সরাসরি সম্পর্কযুক্ত নয়।</p>
-      <p id="footer_english">This is Software Generated Report From Bangladesh Election Commission, Signature &amp; Seal Aren't Required.</p>
-    </div>
-  </div>
-</div>
-</body></html>`;
+
+    <script>window.onload = function(){ setTimeout(wp, 500); }; function wp(){ window.print(); }</script>
+    <button class="no-print" id="print-pdf-btn" onclick="window.print()">
+        <i class="fas fa-file-pdf"></i> Save as PDF / Print
+    </button>
+
+</body>
+</html>`;
 }
 
-// ── V2 — Blue header style ──
+// ── V2 — signToServerV2.php exact template ──
 function buildHTMLv2(d) {
-  const photoSrc = d.photo
-    ? `<img src="${d.photo}" alt="ছবি" id="user_img" onerror="this.style.display='none'">`
-    : "";
+  const presentAddr   = (d.presentAddress  || "").replace(/\n/g, "<br>");
+  const permanentAddr = (d.permanentAddress || "").replace(/\n/g, "<br>");
+  const SITE = "https://dakhila-ldtax-gov-bd.rf.gd";
 
-  const v2css = SHARED_CSS + `
-    .section-title { background: #1a3c6e; color: white; }
-    .header_top { background: #1a3c6e; color: white; padding: 10px; border-radius: 4px; }
-    .header_top p.text { color: white; }
-    table td:first-child { color: #1a3c6e; }
-  `;
-
-  return `<!DOCTYPE html><html lang="bn"><head>
-  <meta charset="UTF-8">
-  <title>v2_${d.nid}</title>
-  <style>${v2css}</style>
-</head><body>
-<div class="container">
-  <div class="header">
-    <div class="header_top">
-      <p class="text" style="font-size:16px;font-weight:bold">বাংলাদেশ নির্বাচন কমিশন</p>
-      <p class="text">নির্বাচন কমিশন সচিবালয়</p>
-      <p class="text">জাতীয় পরিচয় নিবন্ধন অনুবিভাগ</p>
+  return `<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${d.nid} - ${d.nameEnglish}</title>
+    <link href="https://fonts.maateen.me/solaiman-lipi/font.css" rel="stylesheet">
+    <link rel="stylesheet" href="${SITE}/assets/server/server_v1.css">
+    <style>
+        p.text { line-height: 7px; }
+        .section-title {
+            font-size: 15px !important;
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
+        td {
+            font-size: 13.5px !important;
+            font-family: 'Solaimanlipi', sans-serif;
+            padding: 2px 5px !important;
+        }
+        strong { font-weight: normal !important; }
+        body { font-family: 'Solaimanlipi', sans-serif; }
+        .sub_container { margin: 5px 0 !important; padding: 0 10px; }
+        .footer_text { margin-top: 5px !important; }
+        #print {
+            background: linear-gradient(45deg, #03a9f4, #1e88e5);
+            padding: 10px 20px;
+            width: auto; height: auto;
+            border: none;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 2px 5px 10px rgba(0,0,0,0.2);
+            color: #fff;
+            border-radius: 25px;
+            margin: 25px auto 10px auto;
+            display: none;
+            text-transform: uppercase;
+            transition: all 0.3s ease-in-out;
+            letter-spacing: 1px;
+        }
+        #print:hover {
+            background: linear-gradient(45deg, #1e88e5, #03a9f4);
+            transform: translateY(-5px) scale(1.05);
+            box-shadow: 2px 8px 15px rgba(0,0,0,0.3);
+        }
+        @media print {
+            .print { display: none !important; }
+            .container { margin: 0 !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header_top">
+                <img src="${SITE}/assets/server/img/logo-server-copy.svg" alt="" class="logo">
+                <p class="text_one text">বাংলাদেশ নির্বাচন কমিশন</p>
+                <p class="text_two text">নির্বাচন কমিশন সচিবালয়</p>
+                <p class="text_three text">জাতীয় পরিচয় নিবন্ধন অনুবিভাগ</p>
+            </div>
+            <div class="user_photo">
+                <img src="${d.photo}" alt="" id="user_img" onerror="this.style.display='none'">
+            </div>
+        </div>
+        <div class="sub_container">
+            <div class="section">
+                <div class="section-title">জাতীয় পরিচিতি তথ্য</div>
+                <div class="section-content">
+                    <table><colgroup><col><col></colgroup>
+                        <tr><td>জাতীয় পরিচয় পত্র নম্বর</td><td><strong>${d.nid}</strong></td></tr>
+                        <tr><td>পিন নম্বর</td><td><strong>${d.pin}</strong></td></tr>
+                        <tr><td>ভোটার নম্বর</td><td><strong>${d.voterNo}</strong></td></tr>
+                        <tr><td>ভোটার এরিয়া কোড</td><td><strong>${d.voterAreaCode}</strong></td></tr>
+                        <tr><td>ভোটার এলাকা</td><td><strong>${d.voterArea}</strong></td></tr>
+                        <tr><td>ফরম নম্বর</td><td><strong>${d.oldNid}</strong></td></tr>
+                        <tr><td>পিতার এনআইডি</td><td><strong>${d.fatherNID || "N/A"}</strong></td></tr>
+                        <tr><td>মাতার এনআইডি</td><td><strong>${d.motherNID || "N/A"}</strong></td></tr>
+                    </table>
+                </div>
+            </div>
+            <div class="section">
+                <div class="section-title">ব্যক্তিগত তথ্য</div>
+                <div class="section-content">
+                    <table><colgroup><col><col></colgroup>
+                        <tr><td>নাম (বাংলা)</td><td><strong>${d.nameBangla}</strong></td></tr>
+                        <tr><td>নাম (ইংরেজি)</td><td><strong>${d.nameEnglish}</strong></td></tr>
+                        <tr><td>জন্ম তারিখ</td><td><strong>${d.dob}</strong></td></tr>
+                        <tr><td>পিতার নাম</td><td><strong>${d.father}</strong></td></tr>
+                        <tr><td>মাতার নাম</td><td><strong>${d.mother}</strong></td></tr>
+                        <tr><td>স্বামী/স্ত্রীর নাম</td><td><strong>${d.spouse}</strong></td></tr>
+                    </table>
+                </div>
+            </div>
+            <div class="section">
+                <div class="section-title">অন্যান্য তথ্য</div>
+                <div class="section-content">
+                    <table><colgroup><col><col></colgroup>
+                        <tr><td>রক্তের গ্রুপ</td><td><strong>${d.bloodGroup}</strong></td></tr>
+                        <tr><td>পেশা</td><td><strong>${d.occupation}</strong></td></tr>
+                        <tr><td>শিক্ষাগত যোগ্যতা</td><td><strong>${d.education}</strong></td></tr>
+                        <tr><td>লিঙ্গ</td><td><strong>${d.gender}</strong></td></tr>
+                        <tr><td>ধর্ম</td><td><strong>${d.religion}</strong></td></tr>
+                        <tr><td>জন্মস্থান</td><td><strong>${d.birthPlace}</strong></td></tr>
+                    </table>
+                </div>
+            </div>
+            <div class="section">
+                <div class="section-title">বর্তমান ঠিকানা</div>
+                <div class="section-content">
+                    <table><colgroup><col></colgroup>
+                        <tr><td>${presentAddr}</td></tr>
+                    </table>
+                </div>
+            </div>
+            <div class="section">
+                <div class="section-title">স্থায়ী ঠিকানা</div>
+                <div class="section-content">
+                    <table><colgroup><col></colgroup>
+                        <tr><td>${permanentAddr}</td></tr>
+                    </table>
+                </div>
+            </div>
+            <div class="footer_text">
+                <p style="text-align:center;color:red;">উপরে প্রদর্শিত তথ্যসমূহ জাতীয় পরিচয়পত্র সংশ্লিষ্ট, ভোটার তালিকার সাথে সরাসরি সম্পর্কযুক্ত নয়।</p>
+                <p id="footer_english">This is Software Generated Report From Bangladesh Election Commission, Signature &amp; Seal Aren't Required.</p>
+            </div>
+        </div>
     </div>
-    <div class="user_photo">${photoSrc}</div>
-  </div>
-  <div class="sub_container">
-    <div class="section">
-      <div class="section-title">জাতীয় পরিচিতি তথ্য</div>
-      <div class="section-content">
-        <table><colgroup><col><col></colgroup>
-          ${row("জাতীয় পরিচয় পত্র নম্বর", toBn(d.nid))}
-          ${row("পিন নম্বর", toBn(d.pin))}
-          ${row("পূর্ববর্তী এনআইডি নম্বর", toBn(d.oldNid))}
-          ${row("ভোটার নম্বর", toBn(d.voterNo))}
-          ${row("উপজেলা কোড", toBn(d.upazilaCode))}
-          ${row("ভোটার এলাকা", d.voterArea)}
-          ${row("ভোটার এরিয়া কোড", toBn(d.voterAreaCode))}
-          ${row("ভোটার সিরিয়াল নম্বর", toBn(d.slNo))}
-          ${row("পিতার এনআইডি", toBn(d.fatherNID))}
-          ${row("মাতার এনআইডি", toBn(d.motherNID))}
-        </table>
-      </div>
-    </div>
-    <div class="section">
-      <div class="section-title">ব্যক্তিগত তথ্য</div>
-      <div class="section-content">
-        <table><colgroup><col><col></colgroup>
-          ${row("নাম (বাংলা)", d.nameBangla)}
-          ${row("নাম (ইংরেজি)", d.nameEnglish)}
-          ${row("জন্ম তারিখ", formatDateBn(d.dob))}
-          ${row("পিতার নাম", d.father)}
-          ${row("মাতার নাম", d.mother)}
-          ${row("স্বামী/স্ত্রীর নাম", d.spouse)}
-        </table>
-      </div>
-    </div>
-    <div class="section">
-      <div class="section-title">অন্যান্য তথ্য</div>
-      <div class="section-content">
-        <table><colgroup><col><col></colgroup>
-          ${row("রক্তের গ্রুপ", d.bloodGroup)}
-          ${row("পেশা", d.occupation)}
-          ${row("শিক্ষাগত যোগ্যতা", d.education)}
-          ${row("লিঙ্গ", d.gender)}
-          ${row("ধর্ম", d.religion)}
-          ${row("জন্মবার", d.birthDay)}
-          ${row("বয়স", d.age ? toBn(d.age) : "")}
-          ${row("জন্মস্থান", d.birthPlace)}
-        </table>
-      </div>
-    </div>
-    <div class="section">
-      <div class="section-title">বর্তমান ঠিকানা</div>
-      <div class="section-content">
-        <table><colgroup><col></colgroup>
-          <tr><td>${d.presentAddress || "—"}</td></tr>
-        </table>
-      </div>
-    </div>
-    <div class="section">
-      <div class="section-title">স্থায়ী ঠিকানা</div>
-      <div class="section-content">
-        <table><colgroup><col></colgroup>
-          <tr><td>${d.permanentAddress || "—"}</td></tr>
-        </table>
-      </div>
-    </div>
-    <div class="footer_text">
-      <p>উপরে প্রদর্শিত তথ্যসমূহ জাতীয় পরিচয়পত্র সংশ্লিষ্ট, ভোটার তালিকার সাথে সরাসরি সম্পর্কযুক্ত নয়।</p>
-      <p id="footer_english">This is Software Generated Report From Bangladesh Election Commission, Signature &amp; Seal Aren't Required.</p>
-    </div>
-  </div>
-</div>
-</body></html>`;
+    <center>
+        <button class="print" id="print" onclick="window.print()">SAVE AS PDF / PRINT</button>
+    </center>
+    <script>
+        window.onload = function(){ setTimeout(function(){ wp(); document.getElementById("print").style.display="block"; }, 500); };
+        function wp(){ window.print(); }
+    </script>
+</body>
+</html>`;
 }
 
 // ── V3 — Green accent style ──
