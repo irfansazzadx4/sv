@@ -25,6 +25,7 @@ const CONFIG = {
 
   API_EXTRACT_URL: "https://onlinebd.top/api_proxy_server.php",
   SITE_BASE:       "https://dakhila-ldtax-gov-bd.rf.gd",
+  ASSETS:          "https://onlinebd.top",
 
   PDF_API_URL:    process.env.PDF_API_URL,
   PDF_API_SECRET: process.env.PDF_API_SECRET,
@@ -77,10 +78,9 @@ function getUserBalance(number) {
   return u ? (u.balance || 0) : 0;
 }
 
-// ── Default Version per user ──
 function getUserDefaultVersion(number) {
   const u = getUser(number);
-  return u ? (u.defaultVersion || 0) : 0; // 0 = no default, ask every time
+  return u ? (u.defaultVersion || 0) : 0;
 }
 
 function setUserDefaultVersion(number, version) {
@@ -293,149 +293,106 @@ async function downloadMedia(mediaId) {
 
 function mapAPIData(d) {
   return {
-    // Main Info
     nid: d.nationalId || d.nid || d.NID || d.national_id || "",
     pin: d.pin || "",
-
-    // Form Number
     oldNid:
       d.formNo ||
       d.form_number ||
       d.oldNid ||
       d.old_nid ||
       "",
-
-    // Name
     nameBangla:
       d.nameBn ||
       d.nameBangla ||
       d.name_bn ||
       "",
-
     nameEnglish:
       d.nameEn ||
       d.nameEnglish ||
       d.name_en ||
       "",
-
-    // DOB
     dob:
       d.dateOfBirth ||
       d.dob ||
       "",
-
-    // Parents
     father:
       d.father ||
       d.fatherName ||
       d.father_name ||
       "",
-
     mother:
       d.mother ||
       d.motherName ||
       d.mother_name ||
       "",
-
     spouse:
       d.spouse ||
       d.spouseName ||
       "N/A",
-
-    // Others
     gender:
       d.gender ||
       "",
-
     religion:
       d.religion ||
       "",
-
     birthPlace:
       d.birthPlace ||
       d.birth_place ||
       "",
-
     bloodGroup:
       d.bloodGroup ||
       d.blood_group ||
       "N/A",
-
     occupation:
       d.occupation ||
       "N/A",
-
     education:
       d.education ||
       "N/A",
-
-    // Voter Info
     voterArea:
       d.voterArea ||
       d.voter_area ||
       d.voterAreaName ||
       "",
-
     voterNo:
       d.voterNo ||
       d.voter_no ||
       "",
-
     voterAreaCode:
       d.voterAreaCode ||
       d.voter_area_code ||
       "",
-
     slNo:
       d.slNo ||
       d.sl_no ||
       "",
-
     upazilaCode:
       d.upazilaCode ||
       d.upazila_code ||
       "",
-
-    // Parent NID
     fatherNID:
       d.nidFather ||
       d.fatherNID ||
       d.father_nid ||
       "N/A",
-
     motherNID:
       d.nidMother ||
       d.motherNID ||
       d.mother_nid ||
       "N/A",
-
-    // Address (IMPORTANT FIX)
     presentAddress:
       typeof d.presentAddress === "string"
         ? d.presentAddress
-        : (
-            d.presentAddress?.addressLine ||
-            d.presentAddress?.address ||
-            ""
-          ),
-
+        : (d.presentAddress?.addressLine || d.presentAddress?.address || ""),
     permanentAddress:
       typeof d.permanentAddress === "string"
         ? d.permanentAddress
-        : (
-            d.permanentAddress?.addressLine ||
-            d.permanentAddress?.address ||
-            ""
-          ),
-
-    // Image
+        : (d.permanentAddress?.addressLine || d.permanentAddress?.address || ""),
     photo:
       d.photo ||
       d.userIMG ||
       d.imageUrl12 ||
       "",
-
-    // Date
     dateOfToday:
       d.dateOfToday ||
       new Date().toLocaleDateString("bn-BD", {
@@ -446,11 +403,9 @@ function mapAPIData(d) {
   };
 }
 
-// Fetch PDF data using API_EXTRACT_URL
 async function extractNIDFromPDF(buffer) {
   try {
     const form = new FormData();
-    // PHP ফাইলটি 'pdf' ফিল্ডে ফাইল রিসিভ করে, তাই এখানে 'pdf' দেওয়া হলো
     form.append("pdf", buffer, { 
       filename: "document.pdf",
       contentType: "application/pdf"
@@ -460,12 +415,10 @@ async function extractNIDFromPDF(buffer) {
       headers: form.getHeaders(),
     });
 
-    // PHP ফাইলের রেসপন্স অনুযায়ী ডাটা পার্স করা
     if (res.data && res.data.success === true) {
       return mapAPIData(res.data.data);
     } else {
-      // যদি success false আসে, তবে PHP এর পাঠানো message টি এরর হিসেবে দেখাবে
-      throw new Error(res.data.message || "API থেকে সঠিক রেসপন্স পাওয়া যায়নি।");
+      throw new Error(res.data.message || "API থেকে সঠিক রেসপন্স পাওয়া যায়নি।");
     }
   } catch (error) {
     console.error("API Extraction Error:", error.message);
@@ -473,8 +426,10 @@ async function extractNIDFromPDF(buffer) {
   }
 }
 
+// ─────────────────────── HTML BUILDERS ────────────────────────
+
 function buildHTMLv1(d) {
-  const presentAddr  = (d.presentAddress  || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
+  const presentAddr   = (d.presentAddress  || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
   const permanentAddr = (d.permanentAddress || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
   const qrData = encodeURIComponent(`${d.nameEnglish} ${d.nid} ${d.dob}`);
 
@@ -488,40 +443,27 @@ function buildHTMLv1(d) {
     <link rel="stylesheet" href="https://site-assets.fontawesome.com/releases/v6.1.1/css/all.css">
     <style>
         @import url('https://fonts.maateen.me/solaiman-lipi/font.css');
-        @page {
-            size: A4;
-            margin: 0; 
-        }
+        @page { size: A4; margin: 0; }
         body {
             margin: 0;
-            font-family: 'Solaimanlipi', sans-serif; 
+            font-family: 'Solaimanlipi', sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
             min-height: 10vh;
-            background-color: #f0f0f0; 
+            background-color: #f0f0f0;
         }
-        
         .printable-container {
-            width: 750px; 
+            width: 750px;
             height: 1000px;
             position: relative;
             box-shadow: 0;
             margin: 10px 0;
             flex-shrink: 0;
-            background-color: lightgrey; 
+            background-color: lightgrey;
         }
-        
-        .background {
-            position: relative;
-            width: 100%;
-            height: 100%;
-        }
-        .crane {
-            max-width: 100%;
-            height: 100%;
-        }
-        
+        .background { position: relative; width: 100%; height: 100%; }
+        .crane { max-width: 100%; height: 100%; }
         #print-pdf-btn {
             background: linear-gradient(45deg, #FF5722, #FF9800);
             padding: 10px 20px;
@@ -540,51 +482,30 @@ function buildHTMLv1(d) {
             transition: all 0.3s ease-in-out;
             letter-spacing: 1px;
         }
-
-        #print-pdf-btn:hover {
-            background: linear-gradient(45deg, #FF9800, #FF5722);
-            transform: translateY(-5px) scale(1.05);
-            box-shadow: 2px 8px 15px rgba(0, 0, 0, 0.3);
-        }
-
-         @media print {
+        @media print {
             html, body {
                 width: 210mm !important;
                 height: 297mm !important;
                 background-color: #ffffff !important;
                 margin: 0;
                 padding: 0;
-                zoom: 100%; 
                 -webkit-print-color-adjust: exact;
                 color-adjust: exact;
             }
-            .print-only { display: block !important; }
             .no-print { display: none !important; }
-
-            @page {
-                margin-top: 0mm; 
-                margin-bottom: 0mm; 
-            }
+            @page { margin-top: 0mm; margin-bottom: 0mm; }
             .printable-container {
-                width: 205mm; 
-                height: 295mm; 
-                page-break-after: avoid; 
-                margin: 0mm; 
-                overflow: hidden; 
+                width: 205mm;
+                height: 295mm;
+                page-break-after: avoid;
+                margin: 0mm;
+                overflow: hidden;
             }
-            .crane {
-                width: 100%;
-                height: 100%;
-                display: block;
-            }
+            .crane { width: 100%; height: 100%; display: block; }
         }
     </style>
 </head>
 <body style="text-align: center;">
-
-    <div class="no-print" style="padding: 10px; font-weight: bold; background-color: #fff3cd; border: 1px solid #ffc107; margin-bottom: 20px;">
-    </div>
-    
     <div class="printable-container">
         <img class="crane" src="https://dakhila-ldtax-gov-bd.rf.gd/assets/images/server_unofficialV1.jpg" height="1000px" width="750px">
 
@@ -598,82 +519,84 @@ function buildHTMLv1(d) {
         <div style="position: absolute; left: 89%; top: 11.55%; width: auto; font-size: 11px; color: #fff;">Home</div>
 
         <div style="position: absolute; left: 37%; top: 27%; font-size: 16px;"><b>জাতীয় পরিচিতি তথ্য</b></div>
-        <div style="position: absolute; left: 37%; top: 29.7%; font-size: 13px;">জাতীয় পরিচয় পত্র নম্বর</div>
-        <div id="nid_no" style="position: absolute; left: 55%; top: 29.7%; font-size: 14px;">${d.nid}</div>
+        <div style="position: absolute; left: 37%; top: 29.7%; font-size: 14px;">জাতীয় পরিচয় পত্র নম্বর</div>
+        <div style="position: absolute; left: 55%; top: 29.7%; font-size: 14px;">${d.nid}</div>
 
-        <div style="position: absolute; left: 37%; top: 32.5%; font-size: 13px;">পিন নম্বর</div>
-        <div id="nid_father" style="position: absolute; left: 55%; top: 32.5%; font-size: 14px;">${d.pin}</div>
+        <div style="position: absolute; left: 37%; top: 32.5%; font-size: 14px;">পিন নম্বর</div>
+        <div style="position: absolute; left: 55%; top: 32.5%; font-size: 14px;">${d.pin}</div>
 
-        <div style="position: absolute; left: 37%; top: 35%; font-size: 13px;">ফরম নাম্বার</div>
-        <div id="from_number" style="position: absolute; left: 55%; top: 35%; font-size: 14px;">${d.oldNid}</div>
+        <div style="position: absolute; left: 37%; top: 35%; font-size: 14px;">ফরম নাম্বার</div>
+        <div style="position: absolute; left: 55%; top: 35%; font-size: 14px;">${d.oldNid}</div>
 
         <div style="position: absolute; left: 37%; top: 37.5%; font-size: 14px;">ভোটার নাম্বার</div>
-        <div id="spouse" style="position: absolute; left: 55%; top: 37.5%; font-size: 14px;">${d.voterNo}</div>
+        <div style="position: absolute; left: 55%; top: 37.5%; font-size: 14px;">${d.voterNo}</div>
 
         <div style="position: absolute; left: 37%; top: 40.2%; font-size: 14px;">ভোটার এলাকা</div>
-        <div id="voter_area_code" style="position: absolute; left: 55%; top: 40.2%; font-size: 14px;">${d.voterArea}</div>
+        <div style="position: absolute; left: 55%; top: 40.2%; font-size: 14px;">${d.voterArea}</div>
 
         <div style="position: absolute; left: 37%; top: 43%; font-size: 16px;"><b>ব্যক্তিগত তথ্য</b></div>
         <div style="position: absolute; left: 37%; top: 45.6%; font-size: 14px;">নাম (বাংলা)</div>
-        <div id="name_bn" style="position: absolute; left: 55%; top: 45.6%; font-size: 14px;"><b>${d.nameBangla}</b></div>
+        <div style="position: absolute; left: 55%; top: 45.6%; font-size: 14px;"><b>${d.nameBangla}</b></div>
 
         <div style="position: absolute; left: 37%; top: 48.5%; font-size: 14px;">নাম (ইংরেজি)</div>
-        <div id="name_en" style="position: absolute; left: 55%; top: 48.5%; font-size: 14px;">${d.nameEnglish}</div>
+        <div style="position: absolute; left: 55%; top: 48.5%; font-size: 14px;">${d.nameEnglish}</div>
 
         <div style="position: absolute; left: 37%; top: 51%; font-size: 14px;">জন্ম তারিখ</div>
-        <div id="dob" style="position: absolute; left: 55%; top: 51%; font-size: 14px;">${d.dob}</div>
+        <div style="position: absolute; left: 55%; top: 51%; font-size: 14px;">${d.dob}</div>
 
         <div style="position: absolute; left: 37%; top: 53.7%; font-size: 14px;">পিতার নাম</div>
-        <div id="fathers_name" style="position: absolute; left: 55%; top: 53.7%; font-size: 14px;">${d.father}</div>
+        <div style="position: absolute; left: 55%; top: 53.7%; font-size: 14px;">${d.father}</div>
 
         <div style="position: absolute; left: 37%; top: 56.2%; font-size: 14px;">মাতার নাম</div>
-        <div id="mothers_name" style="position: absolute; left: 55%; top: 56.2%; font-size: 14px;">${d.mother}</div>
-        
+        <div style="position: absolute; left: 55%; top: 56.2%; font-size: 14px;">${d.mother}</div>
+
         <div style="position: absolute; left: 37%; top: 59%; font-size: 14px;">স্বামী/স্ত্রীর নাম</div>
-        <div id="spouse_name" style="position: absolute; left: 55%; top: 59%; font-size: 14px;">${d.spouse}</div>
-        
+        <div style="position: absolute; left: 55%; top: 59%; font-size: 14px;">${d.spouse}</div>
+
         <div style="position: absolute; left: 37%; top: 61.8%; font-size: 16px;"><b>অন্যান্য তথ্য</b></div>
-        
+
         <div style="position: absolute; left: 37%; top: 65%; font-size: 14px;">লিঙ্গ</div>
-        <div id="gender" style="position: absolute; left: 55%; top: 65%; font-size: 14px;">${d.gender}</div>
+        <div style="position: absolute; left: 55%; top: 65%; font-size: 14px;">${d.gender}</div>
 
         <div style="position: absolute; left: 37%; top: 67.6%; font-size: 14px;">জন্মস্থান</div>
-        <div id="birth_place" style="position: absolute; left: 55%; top: 67.6%; font-size: 14px;">${d.birthPlace}</div>
+        <div style="position: absolute; left: 55%; top: 67.6%; font-size: 14px;">${d.birthPlace}</div>
 
         <div style="position: absolute; left: 37%; top: 70.3%; font-size: 14px;">রক্তের গ্রুপ</div>
-        <div id="blood_group" style="position: absolute; left: 55%; top: 70.3%; font-size: 14px; color: rgb(252, 0, 0);">${d.bloodGroup}</div>
+        <div style="position: absolute; left: 55%; top: 70.3%; font-size: 14px; color: rgb(252, 0, 0);">${d.bloodGroup}</div>
 
         <div style="position: absolute; left: 37%; top: 72.8%; font-size: 14px;">পেশা</div>
-        <div id="religion" style="position: absolute; left: 55%; top: 72.8%; font-size: 14px;">${d.occupation}</div>
+        <div style="position: absolute; left: 55%; top: 72.8%; font-size: 14px;">${d.occupation}</div>
 
         <div style="position: absolute; left: 37%; top: 75.8%; font-size: 16px;"><b>বর্তমান ঠিকানা</b></div>
-        <div id="present_address" style="position: absolute; left: 37%; top: 78.3%; width: 48%; font-size: 12px; text-align: left; white-space: normal;">${presentAddr}</div> 
+        <div style="position: absolute; left: 37%; top: 78.3%; width: 48%; font-size: 12px; text-align: left; white-space: normal;">${presentAddr}</div>
 
         <div style="position: absolute; left: 37%; top: 84.6%; font-size: 16px;"><b>স্থায়ী ঠিকানা</b></div>
-        <div id="permanent_address" style="position: absolute; left: 37%; top: 87.3%; width: 48%; font-size: 12px; text-align: left; white-space: normal;">${permanentAddr}</div>
-        <div style="position: absolute; top: 94%; width: 100%; font-size: 12px; text-align: center; color: rgb(255, 0, 0);">উপরে প্রদর্শিত তথ্যসমূহ জাতীয় পরিচয়পত্র সংশ্লিষ্ট, ভোটার তালিকার সাথে সরাসরি সম্পর্কযুক্ত নয়।</div>
+        <div style="position: absolute; left: 37%; top: 87.3%; width: 48%; font-size: 12px; text-align: left; white-space: normal;">${permanentAddr}</div>
+
+        <div style="position: absolute; top: 94%; width: 100%; font-size: 13px; text-align: center; color: rgb(255, 0, 0);">উপরে প্রদর্শিত তথ্যসমূহ জাতীয় পরিচয়পত্র সংশ্লিষ্ট, ভোটার তালিকার সাথে সরাসরি সম্পর্কযুক্ত নয়।</div>
         <div style="position: absolute; top: 95.5%; width: 100%; text-align: center; font-size: 12px; color: rgb(3, 3, 3);">This is Software Generated Report From Bangladesh Election Commission, Signature &amp; Seal Aren't Required.</div>
 
         <div style="position: absolute; left: 16%; top: 25.8%;">
-            <img id="photo" src="${d.photo}" height="140px" width="121px" style="border-radius: 10px;" onerror="this.onerror=null; this.src='https://dakhila-ldtax-gov-bd.rf.gd/assets/media/card/blank.png';" />
+            <img src="${d.photo}" height="140px" width="121px" style="border-radius: 10px;" onerror="this.onerror=null; this.src='https://dakhila-ldtax-gov-bd.rf.gd/assets/media/card/blank.png';">
         </div>
 
         <div style="position: absolute; left: 17.7%; top: 44.2%;">
-            <img id="qr" src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${qrData}" height="95px" width="95px">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${qrData}" height="95px" width="95px">
         </div>
-        
-        <div id="name_en2" style="position: absolute; display: flex; font-weight: bold; left: 15.5%; top: 39.8%; height: 32px; width: 130px; font-size: 13px; color: rgb(7, 7, 7); margin: auto; align-items: center;" align="center">
+
+        <div style="position: absolute; display: flex; font-weight: bold; left: 15.5%; top: 39.8%; height: 32px; width: 130px; font-size: 13px; color: rgb(7, 7, 7); margin: auto; align-items: center;" align="center">
             <div style="flex: 1;">${d.nameEnglish}</div>
         </div>
-    </div> 
+    </div>
 </body>
 </html>`;
 }
 
+// ── V2: PHP signToServerV2 এর exact structure ──
 function buildHTMLv2(d) {
-  const presentAddrFormatted   = (d.presentAddress  || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
-  const permanentAddrFormatted = (d.permanentAddress || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
-  const SITE = "https://dakhila-ldtax-gov-bd.rf.gd";
+  const A = CONFIG.ASSETS;
+  const presentAddr   = (d.presentAddress  || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
+  const permanentAddr = (d.permanentAddress || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
 
   return `<!DOCTYPE html>
 <html lang="bn">
@@ -683,96 +606,35 @@ function buildHTMLv2(d) {
     <title>${d.nid} - ${d.nameEnglish}</title>
     <link href="https://fonts.maateen.me/solaiman-lipi/font.css" rel="stylesheet">
     <style>
+        @font-face {
+            font-family: 'Solaimanlipi';
+            src: url('https://fonts.maateen.me/solaiman-lipi/SolaimanLipi.woff2') format('woff2');
+        }
+        * { box-sizing: border-box; }
         body {
-            font-family: 'Solaiman Lipi', 'Solaimanlipi', sans-serif;
+            font-family: 'Solaimanlipi', 'Solaiman Lipi', sans-serif;
             margin: auto;
             padding: 0;
             background-color: #f4f4f9;
             width: 210mm;
-            height: 297mm;
         }
-
-        @page {
-            size: 210mm 297mm;
+        @page { size: 210mm 297mm; margin: 0; }
+        @media print {
+            * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            body { background: white; margin: 0; padding: 0; }
+            .container { margin: 0 !important; }
         }
-
         .container {
             margin: auto;
             background: white;
             padding-left: 20px;
             padding-right: 20px;
         }
-
-        .section {
-            margin-bottom: 1px;
-        }
-
-        .section-title {
-            font-size: 15px!important;
-            font-weight: bold;
-            background: #bbe6ed;
-            color: black;
-            padding: 5px;
-            margin-bottom: 3px;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            table-layout: fixed;
-        }
-
-        colgroup col {
-            width: 30%;
-        }
-
-        colgroup col:last-child {
-            width: 70%;
-        }
-
-        table, th, td {
-            border: 1px solid #EAEAEA;
-        }
-
-        th, td {
-            font-size: 13.5px!important;
-            font-family: 'Solaimanlipi', sans-serif;
-            padding: 2px 5px !important;
-            text-align: left;
-        }
-
-        table td:first-child {
-            font-weight: bold;
-            color: #000;
-        }
-
-        strong {
-            font-weight: normal!important;
-        }
-
-        #footer_english {
-            text-align: center;
-            margin-top: -16px;
-            font-size: 13px;
-            font-weight: bold;
-            font-family: Arial;
-            letter-spacing: -0.2px;
-        }
-
-        .sub_container {
-            margin: 5px 0 !important;
-            padding: 0 10px;
-        }
-
         .header_top {
             text-align: center;
             border-bottom: 1px solid #c2c2c2;
         }
-
-        p.text {
-            line-height: 7px;
-        }
-
+        p.text { line-height: 7px; }
         img#user_img {
             width: 110px;
             margin-top: 10px;
@@ -781,39 +643,50 @@ function buildHTMLv2(d) {
             height: 120px;
             margin-bottom: 20px;
         }
-
-        .user_photo {
+        .user_photo { text-align: center; }
+        .sub_container { margin: 5px 0 !important; padding: 0 10px; }
+        .section { margin-bottom: 1px; }
+        .section-title {
+            font-size: 15px !important;
+            font-family: 'Solaimanlipi', sans-serif;
+            font-weight: bold;
+            background: #bbe6ed;
+            color: black;
+            padding: 5px;
+            margin-bottom: 3px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+        colgroup col { width: 40%; }
+        colgroup col:last-child { width: 60%; }
+        table, td { border: 1px solid #EAEAEA; }
+        td {
+            font-size: 13.5px !important;
+            font-family: 'Solaimanlipi', sans-serif;
+            padding: 2px 5px !important;
+            text-align: left;
+        }
+        td:first-child { font-weight: bold; color: #000; }
+        strong { font-weight: normal !important; }
+        .footer_text { margin-top: 5px !important; }
+        #footer_english {
             text-align: center;
+            margin-top: -16px;
+            font-size: 13px;
+            font-weight: bold;
+            font-family: Arial;
+            letter-spacing: -0.2px;
         }
-
-        .footer_text {
-            margin-top: 5px !important;
-        }
-
-        @media print {
-            * {
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
-            }
-            body {
-                margin: 0;
-                padding: 0;
-                background: white;
-            }
-            .section {
-                page-break-inside: avoid;
-            }
-            .container {
-                margin: 0 !important;
-            }
-        }
-    </style> 
+    </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <div class="header_top">
-                <img src="${SITE}/assets/server/img/logo-server-copy.svg" alt="" class="logo" style="width: 50px; margin-top: 10px;" onerror="this.onerror=null; this.src='https://surokkha.gov.bd/favicon.png';">
+                <img src="${A}/assets/server/img/logo-server-copy.svg" alt="" style="width: 50px; margin-top: 10px;" onerror="this.onerror=null; this.src='https://surokkha.gov.bd/favicon.png';">
                 <p class="text_one text" style="font-weight: bold; font-size: 15px;">বাংলাদেশ নির্বাচন কমিশন</p>
                 <p class="text_two text" style="font-size: 13px;">নির্বাচন কমিশন সচিবালয়</p>
                 <p class="text_three text" style="font-size: 12px; margin-bottom: 10px;">জাতীয় পরিচয় নিবন্ধন অনুবিভাগ</p>
@@ -823,14 +696,12 @@ function buildHTMLv2(d) {
             </div>
         </div>
         <div class="sub_container">
+
             <div class="section">
                 <div class="section-title">জাতীয় পরিচিতি তথ্য</div>
                 <div class="section-content">
                     <table>
-                        <colgroup>
-                            <col>
-                            <col>
-                        </colgroup>
+                        <colgroup><col><col></colgroup>
                         <tr><td>জাতীয় পরিচয় পত্র নম্বর</td><td><strong>${d.nid || "N/A"}</strong></td></tr>
                         <tr><td>পিন নম্বর</td><td><strong>${d.pin || "N/A"}</strong></td></tr>
                         <tr><td>ভোটার নম্বর</td><td><strong>${d.voterNo || "N/A"}</strong></td></tr>
@@ -846,17 +717,14 @@ function buildHTMLv2(d) {
             <div class="section">
                 <div class="section-title">ব্যক্তিগত তথ্য</div>
                 <div class="section-content">
-                    </table>
-                        <colgroup>
-                            <col>
-                            <col>
-                        </colgroup>
-                        <tr><td>নাম (বাংলা) poss瓜<strong>${d.nameBangla || "N/A"}</strong></td></tr>
+                    <table>
+                        <colgroup><col><col></colgroup>
+                        <tr><td>নাম (বাংলা)</td><td><strong>${d.nameBangla || "N/A"}</strong></td></tr>
                         <tr><td>নাম (ইংরেজি)</td><td><strong>${d.nameEnglish || "N/A"}</strong></td></tr>
                         <tr><td>জন্ম তারিখ</td><td><strong>${d.dob || "N/A"}</strong></td></tr>
                         <tr><td>পিতার নাম</td><td><strong>${d.father || "N/A"}</strong></td></tr>
-                        <tr><td>মাতার নাম poss瓜<strong>${d.mother || "N/A"}</strong></td></tr>
-                        <tr><td>স্বামী/স্ত্রীর নাম poss瓜<strong>${d.spouse || "N/A"}</strong></td></tr>
+                        <tr><td>মাতার নাম</td><td><strong>${d.mother || "N/A"}</strong></td></tr>
+                        <tr><td>স্বামী/স্ত্রীর নাম</td><td><strong>${d.spouse || "N/A"}</strong></td></tr>
                     </table>
                 </div>
             </div>
@@ -865,16 +733,13 @@ function buildHTMLv2(d) {
                 <div class="section-title">অন্যান্য তথ্য</div>
                 <div class="section-content">
                     <table>
-                        <colgroup>
-                            <col>
-                            <col>
-                        </colgroup>
-                        <tr><td>রক্তের গ্রুপ poss瓜<strong>${d.bloodGroup || "N/A"}</strong></td></tr>
-                        <tr><td>পেশা poss瓜<strong>${d.occupation || "N/A"}</strong></td></tr>
-                        <tr><td>শিক্ষাগত যোগ্যতা poss瓜<strong>${d.education || "N/A"}</strong></td></tr>
-                        <tr><td>লিঙ্গ poss瓜<strong>${d.gender || "N/A"}</strong></td></tr>
-                        <tr><td>ধর্ম poss瓜<strong>${d.religion || "N/A"}</strong></td></tr>
-                        <tr><td>জন্মস্থান poss瓜<strong>${d.birthPlace || "N/A"}</strong></td></tr>
+                        <colgroup><col><col></colgroup>
+                        <tr><td>রক্তের গ্রুপ</td><td><strong>${d.bloodGroup || "N/A"}</strong></td></tr>
+                        <tr><td>পেশা</td><td><strong>${d.occupation || "N/A"}</strong></td></tr>
+                        <tr><td>শিক্ষাগত যোগ্যতা</td><td><strong>${d.education || "N/A"}</strong></td></tr>
+                        <tr><td>লিঙ্গ</td><td><strong>${d.gender || "N/A"}</strong></td></tr>
+                        <tr><td>ধর্ম</td><td><strong>${d.religion || "N/A"}</strong></td></tr>
+                        <tr><td>জন্মস্থান</td><td><strong>${d.birthPlace || "N/A"}</strong></td></tr>
                     </table>
                 </div>
             </div>
@@ -882,11 +747,8 @@ function buildHTMLv2(d) {
             <div class="section">
                 <div class="section-title">বর্তমান ঠিকানা</div>
                 <div class="section-content">
-                    <table>
-                        <colgroup>
-                            <col>
-                        </colgroup>
-                        <tr><td>${presentAddrFormatted || "N/A"}</td></tr>
+                    <table><colgroup><col></colgroup>
+                        <tr><td>${presentAddr || "N/A"}</td></tr>
                     </table>
                 </div>
             </div>
@@ -894,17 +756,14 @@ function buildHTMLv2(d) {
             <div class="section">
                 <div class="section-title">স্থায়ী ঠিকানা</div>
                 <div class="section-content">
-                    <table>
-                        <colgroup>
-                            <col>
-                        </colgroup>
-                        <tr><td>${permanentAddrFormatted || "N/A"}</td></tr>
+                    <table><colgroup><col></colgroup>
+                        <tr><td>${permanentAddr || "N/A"}</td></tr>
                     </table>
                 </div>
             </div>
 
             <div class="footer_text">
-                <p style="text-align: center; color: red; font-size: 13px;">উপরে প্রদর্শিত তথ্যসমূহ জাতীয় পরিচয়পত্র সংশ্লিষ্ট, ভোটার তালিকার সাথে সরাসরি সম্পর্কযুক্ত নয়।</p>
+                <p style="text-align: center; color: red;">উপরে প্রদর্শিত তথ্যসমূহ জাতীয় পরিচয়পত্র সংশ্লিষ্ট, ভোটার তালিকার সাথে সরাসরি সম্পর্কযুক্ত নয়।</p>
                 <p id="footer_english">This is Software Generated Report From Bangladesh Election Commission, Signature &amp; Seal Aren't Required.</p>
             </div>
         </div>
@@ -913,276 +772,192 @@ function buildHTMLv2(d) {
 </html>`;
 }
 
+// ── V3: PHP signToServerV3 এর exact structure ──
 function buildHTMLv3(d) {
-  const presentAddrFormatted   = (d.presentAddress  || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
-  const permanentAddrFormatted = (d.permanentAddress || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
-  const SITE = "https://dakhila-ldtax-gov-bd.rf.gd";
+  const A = CONFIG.ASSETS;
+  const presentAddr   = (d.presentAddress  || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
+  const permanentAddr = (d.permanentAddress || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${d.nid} - ${d.nameEnglish}</title>
-  <link href="https://fonts.maateen.me/solaiman-lipi/font.css" rel="stylesheet">
-  <style>
-    body {
-        font-family: 'Solaimanlipi', sans-serif;
-        margin: auto;
-        padding: 0;
-        background-color: #f4f4f9;
-        width: 210mm;
-        height: 297mm;
-    }
-
-    @page {
-        size: 210mm 297mm;
-    }
-
-    .container {
-        margin: auto;
-        background: white;
-        padding-left: 20px;
-        padding-right: 20px;
-    }
-
-    .section {
-        background-color: #bbe6ed; 
-    }
-
-    .section-title {
-        font-size: 16px!important;
-        font-family: 'Solaimanlipi', sans-serif;
-        font-weight: bold;
-        background: #bbe6ed;
-        color: black;
-        padding: 5px;
-    }
-    td {
-        font-size: 14.5px!important;
-        font-family: 'Solaimanlipi', sans-serif;
-        padding: 2px 5px !important; 
-    }  
-    strong {
-        font-weight: normal!important;
-    }
-
-    /* sub_container padding */
-    .sub_container {
-        padding-left: 100px;
-        padding-right: 100px;
-    }
-
-    .header_top {
-        text-align: center;
-        border-bottom: 1px solid #c2c2c2;
-    }
-
-    p.text {
-        line-height: 10px;
-    }
-
-    img#user_img {
-        width: 110px;
-        margin-top: 1px;
-        border-radius: 10px;
-        box-shadow: rgba(0, 0, 0, 0.35) 0px 2px 10px;
-        height: 120px;
-    }
-
-    .name {
-        border: 1px solid #eaeaea;
-        padding: 1px;
-        font-size: 15px;
-        font-weight: bold;
-    }
-
-    .user_photo {
-        text-align: center;
-        margin-top: 5px;
-        background-color: #bbe6ed;
-        margin-bottom: 8px;
-    }
-
-    table {
-        width: 100%;
-        border-collapse: collapse;
-        table-layout: fixed;
-    }
-
-    colgroup col {
-        width: 30%;
-    }
-
-    colgroup col:last-child {
-        width: 70%;
-    }
-
-    table, th, td {
-        border: 1px solid #EAEAEA;
-    }
-
-    th, td {
-        padding: 6px;
-        text-align: left;
-    }
-
-    table td:first-child {
-        color: #000;
-    }
-
-    #footer_english {
-        text-align: center;
-        margin-top: -16px;
-        font-size: 13px;
-        font-weight: bold;
-        font-family: Arial;
-        letter-spacing: -0.2px;
-    }
-
-    @media print {
-        * {
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${d.nid} - ${d.nameEnglish}</title>
+    <link href="https://fonts.maateen.me/solaiman-lipi/font.css" rel="stylesheet">
+    <style>
+        @font-face {
+            font-family: 'Solaimanlipi';
+            src: url('https://fonts.maateen.me/solaiman-lipi/SolaimanLipi.woff2') format('woff2');
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Solaimanlipi', 'Solaiman Lipi', sans-serif;
+            margin: auto;
+            padding: 0;
+            background-color: #f4f4f9;
+            width: 210mm;
+        }
+        @page { size: 210mm 297mm; margin: 0; }
+        @media print {
+            * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            body { background: white; margin: 0; padding: 0; }
+            .container { margin: 0 !important; }
         }
         .container {
-            margin: 0 !important;
+            margin: auto;
+            background: white;
+            padding-left: 20px;
+            padding-right: 20px;
         }
-    }
-  </style>
+        .header_top {
+            text-align: center;
+            border-bottom: 1px solid #c2c2c2;
+        }
+        p.text { line-height: 10px; }
+        img#user_img {
+            width: 110px;
+            margin-top: 1px;
+            border-radius: 10px;
+            box-shadow: rgba(0, 0, 0, 0.35) 0px 2px 10px;
+            height: 120px;
+        }
+        .name {
+            border: 1px solid #eaeaea;
+            padding: 1px;
+            font-size: 15px;
+            font-weight: bold;
+        }
+        .user_photo {
+            text-align: center;
+            margin-top: 5px;
+            background-color: #bbe6ed;
+            margin-bottom: 8px;
+        }
+        .sub_container {
+            padding-left: 100px;
+            padding-right: 100px;
+        }
+        .section { background-color: #bbe6ed; }
+        .section-title {
+            font-size: 16px !important;
+            font-family: 'Solaimanlipi', sans-serif;
+            font-weight: bold;
+            background: #bbe6ed;
+            color: black;
+            padding: 5px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+        colgroup col { width: 40%; }
+        colgroup col:last-child { width: 60%; }
+        table, td { border: 1px solid #EAEAEA; }
+        td {
+            font-size: 14.5px !important;
+            font-family: 'Solaimanlipi', sans-serif;
+            padding: 2px 5px !important;
+            text-align: left;
+        }
+        td:first-child { color: #000; font-weight: bold; }
+        strong { font-weight: normal !important; }
+        .footer_text { margin-top: 15px; }
+        #footer_english {
+            text-align: center;
+            margin-top: -16px;
+            font-size: 13px;
+            font-weight: bold;
+            font-family: Arial;
+            letter-spacing: -0.2px;
+        }
+    </style>
 </head>
 <body>
-  <div class="container">
-    <div class="sub_container">
-      <div class="header">
-        <div class="header_top">
-          <img src="${SITE}/assets/server/img/logo-server-copy.svg" alt="" class="logo" style="width: 50px; margin-top: 10px;" onerror="this.onerror=null; this.src='https://surokkha.gov.bd/favicon.png';"> 
-          <p class="text_one text" style="font-weight: bold; font-size: 15px;">বাংলাদেশ নির্বাচন কমিশন</p>
-          <p class="text_two text" style="font-size: 13px;">নির্বাচন কমিশন সচিবালয়</p>
-          <p class="text_three text" style="font-size: 12px; margin-bottom: 10px;">জাতীয় পরিচয় নিবন্ধন অনুবিভাগ</p>
-        </div>
-        <div class="user_photo">
-          <img src="${d.photo}" alt="" id="user_img" onerror="this.onerror=null; this.src='https://dakhila-ldtax-gov-bd.rf.gd/assets/media/card/blank.png';"> 
-          <div class="name" style="margin-top: 5px;">${d.nameEnglish}</div>
-        </div>
-      </div>
+    <div class="container">
+        <div class="sub_container">
+            <div class="header">
+                <div class="header_top">
+                    <img src="${A}/assets/server/img/logo-server-copy.svg" alt="" style="width: 50px; margin-top: 10px;" onerror="this.onerror=null; this.src='https://surokkha.gov.bd/favicon.png';">
+                    <p class="text_one text" style="font-weight: bold; font-size: 15px;">বাংলাদেশ নির্বাচন কমিশন</p>
+                    <p class="text_two text" style="font-size: 13px;">নির্বাচন কমিশন সচিবালয়</p>
+                    <p class="text_three text" style="font-size: 12px; margin-bottom: 10px;">জাতীয় পরিচয় নিবন্ধন অনুবিভাগ</p>
+                </div>
+                <div class="user_photo">
+                    <img src="${d.photo}" alt="" id="user_img" onerror="this.onerror=null; this.src='https://dakhila-ldtax-gov-bd.rf.gd/assets/media/card/blank.png';">
+                    <div class="name">${d.nameEnglish}</div>
+                </div>
+            </div>
 
-      <div class="section">
-        <div class="section-title">জাতীয় পরিচিতি তথ্য</div>
-        <div class="section-content">
-          <table>
-            <colgroup>
-              <col>
-              <col>
-            </colgroup>
-            <tr>
-              <td>জাতীয় পরিচয় পত্র নম্বর poss瓜<strong>${d.nid || "N/A"}</strong></td>
-            </tr>
-            <tr>
-              <td>পিন নম্বর poss瓜<strong>${d.pin || "N/A"}</strong></td>
-            </tr>
-            <tr>
-              <td>পূর্ববর্তী এনআইডি নম্বর poss瓜<strong>${d.oldNid || "N/A"}</strong></td>
-            </tr>
-            <tr>
-              <td>জন্ম নিবন্ধন নম্বর poss瓜<strong>${d.voterNo || "N/A"}</strong></td>
-            </tr>
-            <tr>
-              <td>ভোটার এলাকা poss瓜<strong>${d.voterArea || "N/A"}</strong></td>
-            </tr>
-          </table>
-        </div>
-      </div>
+            <div class="section">
+                <div class="section-title">জাতীয় পরিচিতি তথ্য</div>
+                <div class="section-content">
+                    <table>
+                        <colgroup><col><col></colgroup>
+                        <tr><td>জাতীয় পরিচয় পত্র নম্বর</td><td><strong>${d.nid || "N/A"}</strong></td></tr>
+                        <tr><td>পিন নম্বর</td><td><strong>${d.pin || "N/A"}</strong></td></tr>
+                        <tr><td>পূর্ববর্তী এনআইডি নম্বর</td><td><strong>${d.oldNid || "N/A"}</strong></td></tr>
+                        <tr><td>জন্ম নিবন্ধন নম্বর</td><td><strong>${d.voterNo || "N/A"}</strong></td></tr>
+                        <tr><td>ভোটার এলাকা</td><td><strong>${d.voterArea || "N/A"}</strong></td></tr>
+                    </table>
+                </div>
+            </div>
 
-      <div class="section">
-        <div class="section-title">ব্যক্তিগত তথ্য</div>
-        <div class="section-content">
-          <table>
-            <colgroup>
-              <col>
-              <col>
-            </colgroup>
-            <tr>
-              <td>নাম (বাংলা) poss瓜<strong>${d.nameBangla || "N/A"}</strong></td>
-            </tr>
-            <tr>
-              <td>নাম (ইংরেজি) poss瓜<strong>${d.nameEnglish || "N/A"}</strong></td>
-            </tr>
-            <tr>
-              <td>জন্ম তারিখ poss瓜<strong>${d.dob || "N/A"}</strong></td>
-            </tr>
-            <tr>
-              <td>পিতার নাম poss瓜<strong>${d.father || "N/A"}</strong></td>
-            </tr>
-            <tr>
-              <td>মাতার নাম poss瓜<strong>${d.mother || "N/A"}</strong></td>
-            </tr>
-            <tr>
-              <td>স্বামী/স্ত্রীর নাম poss瓜<strong>${d.spouse || "N/A"}</strong></td>
-            </tr>
-          </table>
-        </div>
-      </div>
+            <div class="section">
+                <div class="section-title">ব্যক্তিগত তথ্য</div>
+                <div class="section-content">
+                    <table>
+                        <colgroup><col><col></colgroup>
+                        <tr><td>নাম (বাংলা)</td><td><strong>${d.nameBangla || "N/A"}</strong></td></tr>
+                        <tr><td>নাম (ইংরেজি)</td><td><strong>${d.nameEnglish || "N/A"}</strong></td></tr>
+                        <tr><td>জন্ম তারিখ</td><td><strong>${d.dob || "N/A"}</strong></td></tr>
+                        <tr><td>পিতার নাম</td><td><strong>${d.father || "N/A"}</strong></td></tr>
+                        <tr><td>মাতার নাম</td><td><strong>${d.mother || "N/A"}</strong></td></tr>
+                        <tr><td>স্বামী/স্ত্রীর নাম</td><td><strong>${d.spouse || "N/A"}</strong></td></tr>
+                    </table>
+                </div>
+            </div>
 
-      <div class="section">
-        <div class="section-title">অন্যান্য তথ্য</div>
-        <div class="section-content">
-          <table>
-            <colgroup>
-              <col>
-              <col>
-            </colgroup>
-            <tr>
-              <td>পেশা poss瓜<strong>${d.occupation || "N/A"}</strong></td>
-            </tr>
-            <tr>
-              <td>রক্তের গ্রুপ poss瓜<strong>${d.bloodGroup || "N/A"}</strong></td>
-            </tr>
-            <tr>
-              <td>ধর্ম poss瓜<strong>${d.religion || "N/A"}</strong></td>
-            </tr>
-            <tr>
-              <td>লিঙ্গ poss瓜<strong>${d.gender || "N/A"}</strong></td>
-            </tr>
-            <tr>
-              <td>শিক্ষাগত যোগ্যতা poss瓜<strong>${d.education || "N/A"}</strong></td>
-            </tr>
-            <tr>
-              <td>জন্মস্থান poss瓜<strong>${d.birthPlace || "N/A"}</strong></td>
-            </tr>
-          </table>
-        </div>
-      </div>
+            <div class="section">
+                <div class="section-title">অন্যান্য তথ্য</div>
+                <div class="section-content">
+                    <table>
+                        <colgroup><col><col></colgroup>
+                        <tr><td>পেশা</td><td><strong>${d.occupation || "N/A"}</strong></td></tr>
+                        <tr><td>রক্তের গ্রুপ</td><td><strong>${d.bloodGroup || "N/A"}</strong></td></tr>
+                        <tr><td>ধর্ম</td><td><strong>${d.religion || "N/A"}</strong></td></tr>
+                        <tr><td>লিঙ্গ</td><td><strong>${d.gender || "N/A"}</strong></td></tr>
+                        <tr><td>শিক্ষাগত যোগ্যতা</td><td><strong>${d.education || "N/A"}</strong></td></tr>
+                        <tr><td>জন্মস্থান</td><td><strong>${d.birthPlace || "N/A"}</strong></td></tr>
+                    </table>
+                </div>
+            </div>
 
-      <div class="section">
-        <div class="section-title">বর্তমান ঠিকানা</div>
-        <div class="section-content">
-          <table>
-            <colgroup>
-              <col>
-            </colgroup>
-            <tr><td>${presentAddrFormatted || "N/A"}</td></tr>
-          </table>
-        </div>
-      </div>
+            <div class="section">
+                <div class="section-title">বর্তমান ঠিকানা</div>
+                <div class="section-content">
+                    <table><colgroup><col></colgroup>
+                        <tr><td>${presentAddr || "N/A"}</td></tr>
+                    </table>
+                </div>
+            </div>
 
-      <div class="section">
-        <div class="section-title">স্থায়ী ঠিকানা</div>
-        <div class="section-content">
-          </table>
-            <colgroup>
-              <col>
-            </colgroup>
-            <tr><td>${permanentAddrFormatted || "N/A"}</td></tr>
-          </table>
+            <div class="section">
+                <div class="section-title">স্থায়ী ঠিকানা</div>
+                <div class="section-content">
+                    <table><colgroup><col></colgroup>
+                        <tr><td>${permanentAddr || "N/A"}</td></tr>
+                    </table>
+                </div>
+            </div>
         </div>
-      </div>
+
+        <div class="footer_text">
+            <p style="text-align: center; color: red; font-size: 13px;">উপরে প্রদর্শিত তথ্যসমূহ জাতীয় পরিচয়পত্র সংশ্লিষ্ট, ভোটার তালিকার সাথে সরাসরি সম্পর্কযুক্ত নয়।</p>
+            <p id="footer_english">This is Software Generated Report From Bangladesh Election Commission, Signature &amp; Seal Aren't Required.</p>
+        </div>
     </div>
-    <div class="footer_text" style="margin-top: 15px;">
-      <p style="text-align: center; color: red; font-size: 13px;">উপরে প্রদর্শিত তথ্যসমূহ জাতীয় পরিচয়পত্র সংশ্লিষ্ট, ভোটার তালিকার সাথে সরাসরি সম্পর্কযুক্ত নয়।</p>
-      <p id="footer_english">This is Software Generated Report From Bangladesh Election Commission, Signature &amp; Seal Aren't Required.</p>
-    </div>
-  </div>
 </body>
 </html>`;
 }
@@ -1228,7 +1003,7 @@ async function processNIDCard(from, data, version, msgId) {
     `🆔 NID: ${toBn(data.nid)}`,
     `🎂 DOB: ${data.dob}`,
     price > 0 ? `💰 Remaining: ${getUserBalance(from)} টাকা` : "",
-    defVer > 0 ? `⚙️ Default Version: V${defVer} : 💡 .setversion v1 দিলে পরে auto তৈরি হবে` : "",
+    defVer > 0 ? `⚙️ Default Version: V${defVer}` : "💡 .setversion v1 দিলে পরে auto তৈরি হবে",
   ].filter(Boolean).join("\n");
 
   const mediaId = await uploadMedia(pdfBuffer, filename, "application/pdf");
