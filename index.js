@@ -969,12 +969,97 @@ function buildHTML(version, data) {
   return buildHTMLv1(data);
 }
 
+// ─────────────────── FONT EMBED ────────────────────────────────
+// Puppeteer/PDF API এ external font URL load হয় না।
+// তাই font একবার download করে memory তে cache রাখা হয়,
+// তারপর HTML এ base64 হিসেবে embed করা হয়।
+
+const fontCache = {};
+
+const FONTS = [
+  {
+    // SolaimanLipi — বাংলা font, primary
+    name:   "SolaimanLipi",
+    family: "Solaimanlipi",
+    urls: [
+      "https://fonts.maateen.me/solaiman-lipi/SolaimanLipi.woff2",
+      "https://fonts.maateen.me/solaiman-lipi/SolaimanLipi.ttf",
+      "https://onlinebd.top/fonts/SolaimanLipi.ttf",
+      "https://onlinebd.top/fonts/Bangla.ttf",
+    ],
+    format: "woff2",  // first URL format, fallback TTF হলে auto detect
+  },
+];
+
+async function fetchFontBase64(urls) {
+  for (const url of urls) {
+    try {
+      const res = await axios.get(url, {
+        responseType: "arraybuffer",
+        timeout: 20000,
+        headers: { "User-Agent": "Mozilla/5.0 NIDBot/1.0" },
+      });
+      const buf    = Buffer.from(res.data);
+      const fmt    = url.endsWith(".woff2") ? "woff2" : url.endsWith(".woff") ? "woff" : "truetype";
+      const b64    = buf.toString("base64");
+      const mime   = url.endsWith(".woff2") ? "font/woff2" : url.endsWith(".woff") ? "font/woff" : "font/truetype";
+      console.log(`✅ Font loaded: ${url} (${Math.round(buf.length / 1024)}KB)`);
+      return { b64, fmt, mime };
+    } catch (e) {
+      console.log(`⚠️ Font fetch failed: ${url} — ${e.message}`);
+    }
+  }
+  return null;
+}
+
+async function getEmbeddedFontCSS() {
+  let css = "";
+  for (const font of FONTS) {
+    if (!fontCache[font.name]) {
+      fontCache[font.name] = await fetchFontBase64(font.urls);
+    }
+    const f = fontCache[font.name];
+    if (f) {
+      css += `
+@font-face {
+  font-family: '${font.family}';
+  src: url('data:${f.mime};base64,${f.b64}') format('${f.fmt}');
+  font-weight: normal;
+  font-style: normal;
+}`;
+    }
+  }
+  return css;
+}
+
+async function embedFontsInHTML(html) {
+  try {
+    const fontCSS = await getEmbeddedFontCSS();
+    if (!fontCSS) return html;  // font না পেলে as-is পাঠাও
+
+    const tag = `<style id="embedded-fonts">${fontCSS}\n* { font-family: 'Solaimanlipi', 'Solaiman Lipi', Arial, sans-serif !important; }</style>`;
+
+    // </head> এর আগে inject, না থাকলে শুরুতে
+    if (html.includes("</head>")) {
+      return html.replace("</head>", `${tag}\n</head>`);
+    }
+    return tag + "\n" + html;
+  } catch (e) {
+    console.error("Font embed error:", e.message);
+    return html;
+  }
+}
+
 // ─────────────────── HTML → PDF CONVERTER ──────────────────────
 async function convertHTMLtoPDF(html) {
   if (!CONFIG.PDF_API_URL) throw new Error("PDF_API_URL set করা নেই!");
+
+  // Font embed — Puppeteer এ external URL load হয় না
+  const htmlWithFonts = await embedFontsInHTML(html);
+
   const res = await axios.post(`${CONFIG.PDF_API_URL}/pdf`, {
     secret: CONFIG.PDF_API_SECRET,
-    html,
+    html: htmlWithFonts,
   }, { timeout: 90000 });
   const base64 = res.data.pdf || res.data.base64 || res.data;
   return Buffer.from(base64, "base64");
