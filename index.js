@@ -428,6 +428,8 @@ async function extractNIDFromPDF(buffer) {
 
 // ─────────────────────── HTML BUILDERS ────────────────────────
 
+// ─────────────────────── HTML BUILDERS ────────────────────────
+
 function buildHTMLv1(d) {
   const presentAddr   = (d.presentAddress  || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
   const permanentAddr = (d.permanentAddress || "").replace(/\r\n/g, "<br>").replace(/\n/g, "<br>");
@@ -519,62 +521,62 @@ function buildHTMLv1(d) {
         <div style="position: absolute; left: 89%; top: 11.55%; width: auto; font-size: 11px; color: #fff;">Home</div>
 
         <div style="position: absolute; left: 37%; top: 27%; font-size: 16px;"><b>জাতীয় পরিচিতি তথ্য</b></div>
-        <div style="position: absolute; left: 37%; top: 29.7%; font-size: 14px;">জাতীয় পরিচয় পত্র নম্বর</div>
-        <div style="position: absolute; left: 55%; top: 29.7%; font-size: 14px;">${d.nid}</div>
+        <div style="position: absolute; left: 37%; top: 29.7%; font-size: 15px;">জাতীয় পরিচয় পত্র নম্বর</div>
+        <div style="position: absolute; left: 55%; top: 29.7%; font-size: 15px;">${d.nid}</div>
 
-        <div style="position: absolute; left: 37%; top: 32.5%; font-size: 14px;">পিন নম্বর</div>
-        <div style="position: absolute; left: 55%; top: 32.5%; font-size: 14px;">${d.pin}</div>
+        <div style="position: absolute; left: 37%; top: 32.5%; font-size: 15px;">পিন নম্বর</div>
+        <div style="position: absolute; left: 55%; top: 32.5%; font-size: 15px;">${d.pin}</div>
 
-        <div style="position: absolute; left: 37%; top: 35%; font-size: 14px;">ফরম নাম্বার</div>
-        <div style="position: absolute; left: 55%; top: 35%; font-size: 14px;">${d.oldNid}</div>
+        <div style="position: absolute; left: 37%; top: 35%; font-size: 15px;">ফরম নাম্বার</div>
+        <div style="position: absolute; left: 55%; top: 35%; font-size: 15px;">${d.oldNid}</div>
 
-        <div style="position: absolute; left: 37%; top: 37.5%; font-size: 14px;">ভোটার নাম্বার</div>
-        <div style="position: absolute; left: 55%; top: 37.5%; font-size: 14px;">${d.voterNo}</div>
+        <div style="position: absolute; left: 37%; top: 37.5%; font-size: 15px;">ভোটার নাম্বার</div>
+        <div style="position: absolute; left: 55%; top: 37.5%; font-size: 15px;">${d.voterNo}</div>
 
-        <div style="position: absolute; left: 37%; top: 40.2%; font-size: 14px;">ভোটার এলাকা</div>
-        <div style="position: absolute; left: 55%; top: 40.2%; font-size: 14px;">${d.voterArea}</div>
+        <div style="position: absolute; left: 37%; top: 40.2%; font-size: 15px;">ভোটার এলাকা</div>
+        <div style="position: absolute; left: 55%; top: 40.2%; font-size: 15px;">${d.voterArea}</div>
 
-        <div style="position: absolute; left: 37%; top: 43%; font-size: 16px;"><b>ব্যক্তিগত তথ্য</b></div>
-        <div style="position: absolute; left: 37%; top: 45.6%; font-size: 14px;">নাম (বাংলা)</div>
-        <div style="position: absolute; left: 55%; top: 45.6%; font-size: 14px;"><b>${d.nameBangla}</b></div>
+        <div style="position: absolute; left: 37%; top: 43%; font-size: 17px;"><b>ব্যক্তিগত তথ্য</b></div>
+        <div style="position: absolute; left: 37%; top: 45.6%; font-size: 15px;">নাম (বাংলা)</div>
+        <div style="position: absolute; left: 55%; top: 45.6%; font-size: 15px;"><b>${d.nameBangla}</b></div>
 
-        <div style="position: absolute; left: 37%; top: 48.5%; font-size: 14px;">নাম (ইংরেজি)</div>
-        <div style="position: absolute; left: 55%; top: 48.5%; font-size: 14px;">${d.nameEnglish}</div>
+        <div style="position: absolute; left: 37%; top: 48.5%; font-size: 15px;">নাম (ইংরেজি)</div>
+        <div style="position: absolute; left: 55%; top: 48.5%; font-size: 15px;">${d.nameEnglish}</div>
 
-        <div style="position: absolute; left: 37%; top: 51%; font-size: 14px;">জন্ম তারিখ</div>
-        <div style="position: absolute; left: 55%; top: 51%; font-size: 14px;">${d.dob}</div>
+        <div style="position: absolute; left: 37%; top: 51%; font-size: 15px;">জন্ম তারিখ</div>
+        <div style="position: absolute; left: 55%; top: 51%; font-size: 15px;">${d.dob}</div>
 
-        <div style="position: absolute; left: 37%; top: 53.7%; font-size: 14px;">পিতার নাম</div>
-        <div style="position: absolute; left: 55%; top: 53.7%; font-size: 14px;">${d.father}</div>
+        <div style="position: absolute; left: 37%; top: 53.7%; font-size: 15px;">পিতার নাম</div>
+        <div style="position: absolute; left: 55%; top: 53.7%; font-size: 15px;">${d.father}</div>
 
-        <div style="position: absolute; left: 37%; top: 56.2%; font-size: 14px;">মাতার নাম</div>
-        <div style="position: absolute; left: 55%; top: 56.2%; font-size: 14px;">${d.mother}</div>
+        <div style="position: absolute; left: 37%; top: 56.2%; font-size: 15px;">মাতার নাম</div>
+        <div style="position: absolute; left: 55%; top: 56.2%; font-size: 15px;">${d.mother}</div>
 
-        <div style="position: absolute; left: 37%; top: 59%; font-size: 14px;">স্বামী/স্ত্রীর নাম</div>
-        <div style="position: absolute; left: 55%; top: 59%; font-size: 14px;">${d.spouse}</div>
+        <div style="position: absolute; left: 37%; top: 59%; font-size: 15px;">স্বামী/স্ত্রীর নাম</div>
+        <div style="position: absolute; left: 55%; top: 59%; font-size: 15px;">${d.spouse}</div>
 
-        <div style="position: absolute; left: 37%; top: 61.8%; font-size: 16px;"><b>অন্যান্য তথ্য</b></div>
+        <div style="position: absolute; left: 37%; top: 61.8%; font-size: 17px;"><b>অন্যান্য তথ্য</b></div>
 
-        <div style="position: absolute; left: 37%; top: 65%; font-size: 14px;">লিঙ্গ</div>
-        <div style="position: absolute; left: 55%; top: 65%; font-size: 14px;">${d.gender}</div>
+        <div style="position: absolute; left: 37%; top: 65%; font-size: 15px;">লিঙ্গ</div>
+        <div style="position: absolute; left: 55%; top: 65%; font-size: 15px;">${d.gender}</div>
 
-        <div style="position: absolute; left: 37%; top: 67.6%; font-size: 14px;">জন্মস্থান</div>
-        <div style="position: absolute; left: 55%; top: 67.6%; font-size: 14px;">${d.birthPlace}</div>
+        <div style="position: absolute; left: 37%; top: 67.6%; font-size: 15px;">জন্মস্থান</div>
+        <div style="position: absolute; left: 55%; top: 67.6%; font-size: 15px;">${d.birthPlace}</div>
 
-        <div style="position: absolute; left: 37%; top: 70.3%; font-size: 14px;">রক্তের গ্রুপ</div>
-        <div style="position: absolute; left: 55%; top: 70.3%; font-size: 14px; color: rgb(252, 0, 0);">${d.bloodGroup}</div>
+        <div style="position: absolute; left: 37%; top: 70.3%; font-size: 15px;">রক্তের গ্রুপ</div>
+        <div style="position: absolute; left: 55%; top: 70.3%; font-size: 15px; color: rgb(252, 0, 0);">${d.bloodGroup}</div>
 
-        <div style="position: absolute; left: 37%; top: 72.8%; font-size: 14px;">পেশা</div>
-        <div style="position: absolute; left: 55%; top: 72.8%; font-size: 14px;">${d.occupation}</div>
+        <div style="position: absolute; left: 37%; top: 72.8%; font-size: 15px;">পেশা</div>
+        <div style="position: absolute; left: 55%; top: 72.8%; font-size: 15px;">${d.occupation}</div>
 
-        <div style="position: absolute; left: 37%; top: 75.8%; font-size: 16px;"><b>বর্তমান ঠিকানা</b></div>
-        <div style="position: absolute; left: 37%; top: 78.3%; width: 48%; font-size: 12px; text-align: left; white-space: normal;">${presentAddr}</div>
+        <div style="position: absolute; left: 37%; top: 75.6%; font-size: 17px;"><b>বর্তমান ঠিকানা</b></div>
+        <div style="position: absolute; left: 37%; top: 78.3%; width: 48%; font-size: 15px; text-align: left; white-space: normal;">${presentAddr}</div>
 
-        <div style="position: absolute; left: 37%; top: 84.6%; font-size: 16px;"><b>স্থায়ী ঠিকানা</b></div>
-        <div style="position: absolute; left: 37%; top: 87.3%; width: 48%; font-size: 12px; text-align: left; white-space: normal;">${permanentAddr}</div>
+        <div style="position: absolute; left: 37%; top: 84.4%; font-size: 17px;"><b>স্থায়ী ঠিকানা</b></div>
+        <div style="position: absolute; left: 37%; top: 87.3%; width: 48%; font-size: 15px; text-align: left; white-space: normal;">${permanentAddr}</div>
 
-        <div style="position: absolute; top: 94%; width: 100%; font-size: 13px; text-align: center; color: rgb(255, 0, 0);">উপরে প্রদর্শিত তথ্যসমূহ জাতীয় পরিচয়পত্র সংশ্লিষ্ট, ভোটার তালিকার সাথে সরাসরি সম্পর্কযুক্ত নয়।</div>
-        <div style="position: absolute; top: 95.5%; width: 100%; text-align: center; font-size: 12px; color: rgb(3, 3, 3);">This is Software Generated Report From Bangladesh Election Commission, Signature &amp; Seal Aren't Required.</div>
+        <div style="position: absolute; top: 94.8%; width: 100%; font-size: 14px; text-align: center; color: rgb(255, 0, 0);">উপরে প্রদর্শিত তথ্যসমূহ জাতীয় পরিচয়পত্র সংশ্লিষ্ট, ভোটার তালিকার সাথে সরাসরি সম্পর্কযুক্ত নয়।</div>
+        <div style="position: absolute; top: 96.5%; width: 100%; text-align: center; font-size: 12px; color: rgb(3, 3, 3);">This is Software Generated Report From Bangladesh Election Commission, Signature &amp; Seal Aren't Required.</div>
 
         <div style="position: absolute; left: 16%; top: 25.8%;">
             <img src="${d.photo}" height="140px" width="121px" style="border-radius: 10px;" onerror="this.onerror=null; this.src='https://dakhila-ldtax-gov-bd.rf.gd/assets/media/card/blank.png';">
@@ -647,7 +649,7 @@ function buildHTMLv2(d) {
         .sub_container { margin: 5px 0 !important; padding: 0 10px; }
         .section { margin-bottom: 1px; }
         .section-title {
-            font-size: 15px !important;
+            font-size: 17px !important;
             font-family: 'Solaimanlipi', sans-serif;
             font-weight: bold;
             background: #bbe6ed;
@@ -664,12 +666,12 @@ function buildHTMLv2(d) {
         colgroup col:last-child { width: 60%; }
         table, td { border: 1px solid #EAEAEA; }
         td {
-            font-size: 13.5px !important;
+            font-size: 14px !important;
             font-family: 'Solaimanlipi', sans-serif;
             padding: 2px 5px !important;
             text-align: left;
         }
-        td:first-child { font-weight: bold; color: #000; }
+        td:first-child { font-weight: Normal; color: #000; }
         strong { font-weight: normal !important; }
         .footer_text { margin-top: 5px !important; }
         #footer_english {
@@ -687,9 +689,9 @@ function buildHTMLv2(d) {
         <div class="header">
             <div class="header_top">
                 <img src="${A}/assets/server/img/logo-server-copy.svg" alt="" style="width: 50px; margin-top: 10px;" onerror="this.onerror=null; this.src='https://surokkha.gov.bd/favicon.png';">
-                <p class="text_one text" style="font-weight: bold; font-size: 15px;">বাংলাদেশ নির্বাচন কমিশন</p>
-                <p class="text_two text" style="font-size: 13px;">নির্বাচন কমিশন সচিবালয়</p>
-                <p class="text_three text" style="font-size: 12px; margin-bottom: 10px;">জাতীয় পরিচয় নিবন্ধন অনুবিভাগ</p>
+                <p class="text_one text" style="font-size: 16px;">বাংলাদেশ নির্বাচন কমিশন</p>
+                <p class="text_two text" style="font-size: 16px;">নির্বাচন কমিশন সচিবালয়</p>
+                <p class="text_three text" style="font-size: 16px; margin-bottom: 10px;">জাতীয় পরিচয় নিবন্ধন অনুবিভাগ</p>
             </div>
             <div class="user_photo">
                 <img src="${d.photo}" alt="" id="user_img" onerror="this.onerror=null; this.src='https://dakhila-ldtax-gov-bd.rf.gd/assets/media/card/blank.png';">
@@ -840,7 +842,7 @@ function buildHTMLv3(d) {
         }
         .section { background-color: #bbe6ed; }
         .section-title {
-            font-size: 16px !important;
+            font-size: 17px !important;
             font-family: 'Solaimanlipi', sans-serif;
             font-weight: bold;
             background: #bbe6ed;
@@ -856,12 +858,12 @@ function buildHTMLv3(d) {
         colgroup col:last-child { width: 60%; }
         table, td { border: 1px solid #EAEAEA; }
         td {
-            font-size: 14.5px !important;
+            font-size: 14px !important;
             font-family: 'Solaimanlipi', sans-serif;
             padding: 2px 5px !important;
             text-align: left;
         }
-        td:first-child { color: #000; font-weight: bold; }
+        td:first-child { color: #000; font-weight: normal; }
         strong { font-weight: normal !important; }
         .footer_text { margin-top: 15px; }
         #footer_english {
@@ -880,9 +882,9 @@ function buildHTMLv3(d) {
             <div class="header">
                 <div class="header_top">
                     <img src="${A}/assets/server/img/logo-server-copy.svg" alt="" style="width: 50px; margin-top: 10px;" onerror="this.onerror=null; this.src='https://surokkha.gov.bd/favicon.png';">
-                    <p class="text_one text" style="font-weight: bold; font-size: 15px;">বাংলাদেশ নির্বাচন কমিশন</p>
-                    <p class="text_two text" style="font-size: 13px;">নির্বাচন কমিশন সচিবালয়</p>
-                    <p class="text_three text" style="font-size: 12px; margin-bottom: 10px;">জাতীয় পরিচয় নিবন্ধন অনুবিভাগ</p>
+                    <p class="text_one text" style="font-size: 16px;">বাংলাদেশ নির্বাচন কমিশন</p>
+                    <p class="text_two text" style="font-size: 16px;">নির্বাচন কমিশন সচিবালয়</p>
+                    <p class="text_three text" style="font-size: 16px; margin-bottom: 10px;">জাতীয় পরিচয় নিবন্ধন অনুবিভাগ</p>
                 </div>
                 <div class="user_photo">
                     <img src="${d.photo}" alt="" id="user_img" onerror="this.onerror=null; this.src='https://dakhila-ldtax-gov-bd.rf.gd/assets/media/card/blank.png';">
@@ -954,7 +956,7 @@ function buildHTMLv3(d) {
         </div>
 
         <div class="footer_text">
-            <p style="text-align: center; color: red; font-size: 13px;">উপরে প্রদর্শিত তথ্যসমূহ জাতীয় পরিচয়পত্র সংশ্লিষ্ট, ভোটার তালিকার সাথে সরাসরি সম্পর্কযুক্ত নয়।</p>
+            <p style="text-align: center; color: red; font-size: 16px;">উপরে প্রদর্শিত তথ্যসমূহ জাতীয় পরিচয়পত্র সংশ্লিষ্ট, ভোটার তালিকার সাথে সরাসরি সম্পর্কযুক্ত নয়।</p>
             <p id="footer_english">This is Software Generated Report From Bangladesh Election Commission, Signature &amp; Seal Aren't Required.</p>
         </div>
     </div>
