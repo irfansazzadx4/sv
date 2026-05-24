@@ -976,48 +976,47 @@ function buildHTML(version, data) {
 // index.js থেকে plain HTML পাঠালেই হবে।
 async function convertHTMLtoPDF(html) {
   if (!CONFIG.PDF_API_URL) throw new Error("PDF_API_URL set করা নেই!");
-  
+
   const res = await axios.post(`${CONFIG.PDF_API_URL}/pdf`, {
     secret: CONFIG.PDF_API_SECRET,
     html,
-  }, { 
+  }, {
     timeout: 90000,
     maxContentLength: Infinity,
     maxBodyLength: Infinity,
-    responseType: "json",
+    responseType: "arraybuffer", // ✅ raw bytes হিসেবে নাও
   });
 
-  // Response টা কি পেলাম সেটা log করো
-  const data = res.data;
-  console.log("📦 PDF API response type:", typeof data);
-  console.log("📦 PDF API keys:", typeof data === "object" ? Object.keys(data) : "string");
+  // arraybuffer থেকে string বানাও
+  const raw = Buffer.from(res.data).toString("utf8");
 
-  let base64 = null;
-
-  if (typeof data === "object" && data.pdf) {
-    base64 = data.pdf;
-  } else if (typeof data === "object" && data.base64) {
-    base64 = data.base64;
-  } else if (typeof data === "string") {
-    // পুরো response টাই base64 হতে পারে
-    base64 = data;
+  // JSON parse করো
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (e) {
+    throw new Error("PDF API response JSON parse failed: " + raw.slice(0, 200));
   }
 
+  console.log("📦 PDF API keys:", Object.keys(parsed));
+  console.log("📦 PDF size field:", parsed.size);
+
+  const base64 = parsed.pdf;
   if (!base64) {
-    throw new Error("PDF base64 পাওয়া যায়নি। Response: " + JSON.stringify(data).slice(0, 200));
+    throw new Error("base64 পাওয়া যায়নি: " + JSON.stringify(parsed).slice(0, 200));
   }
 
-  // Whitespace clean করো
-  base64 = base64.replace(/\s/g, "");
+  // Clean করো
+  const clean = base64.replace(/\s/g, "");
+  console.log("📦 base64 length:", clean.length);
 
-  const buffer = Buffer.from(base64, "base64");
+  const buffer = Buffer.from(clean, "base64");
 
-  // PDF header validate করো
   const header = buffer.slice(0, 4).toString("ascii");
-  console.log("📄 PDF header:", header, "| Size:", buffer.length, "bytes");
+  console.log("📄 PDF header:", header, "| Size:", buffer.length);
 
   if (header !== "%PDF") {
-    throw new Error(`Invalid PDF! Header: "${header}" — base64 ঠিকমতো আসেনি।`);
+    throw new Error(`Invalid PDF! Header: "${header}"`);
   }
 
   return buffer;
