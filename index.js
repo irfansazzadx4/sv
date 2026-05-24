@@ -976,12 +976,51 @@ function buildHTML(version, data) {
 // index.js থেকে plain HTML পাঠালেই হবে।
 async function convertHTMLtoPDF(html) {
   if (!CONFIG.PDF_API_URL) throw new Error("PDF_API_URL set করা নেই!");
+  
   const res = await axios.post(`${CONFIG.PDF_API_URL}/pdf`, {
     secret: CONFIG.PDF_API_SECRET,
     html,
-  }, { timeout: 90000 });
-  const base64 = res.data.pdf || res.data.base64 || res.data;
-  return Buffer.from(base64, "base64");
+  }, { 
+    timeout: 90000,
+    maxContentLength: Infinity,
+    maxBodyLength: Infinity,
+    responseType: "json",
+  });
+
+  // Response টা কি পেলাম সেটা log করো
+  const data = res.data;
+  console.log("📦 PDF API response type:", typeof data);
+  console.log("📦 PDF API keys:", typeof data === "object" ? Object.keys(data) : "string");
+
+  let base64 = null;
+
+  if (typeof data === "object" && data.pdf) {
+    base64 = data.pdf;
+  } else if (typeof data === "object" && data.base64) {
+    base64 = data.base64;
+  } else if (typeof data === "string") {
+    // পুরো response টাই base64 হতে পারে
+    base64 = data;
+  }
+
+  if (!base64) {
+    throw new Error("PDF base64 পাওয়া যায়নি। Response: " + JSON.stringify(data).slice(0, 200));
+  }
+
+  // Whitespace clean করো
+  base64 = base64.replace(/\s/g, "");
+
+  const buffer = Buffer.from(base64, "base64");
+
+  // PDF header validate করো
+  const header = buffer.slice(0, 4).toString("ascii");
+  console.log("📄 PDF header:", header, "| Size:", buffer.length, "bytes");
+
+  if (header !== "%PDF") {
+    throw new Error(`Invalid PDF! Header: "${header}" — base64 ঠিকমতো আসেনি।`);
+  }
+
+  return buffer;
 }
 
 // ─────────────────── PROCESS: PDF → Card → Send ────────────────
