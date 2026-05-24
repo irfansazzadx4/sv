@@ -570,10 +570,10 @@ function buildHTMLv1(d) {
         <div style="position: absolute; left: 55%; top: 72.8%; font-size: 14px;">${d.occupation}</div>
 
         <div style="position: absolute; left: 37%; top: 75.6%; font-size: 17px;"><b>বর্তমান ঠিকানা</b></div>
-        <div style="position: absolute; left: 37%; top: 78.3%; width: 48%; font-size: 13.5px; text-align: left; white-space: normal;">${presentAddr}</div>
+        <div style="position: absolute; left: 37%; top: 78.3%; width: 48%; font-size: 13px; text-align: left; white-space: normal;">${presentAddr}</div>
 
         <div style="position: absolute; left: 37%; top: 84.4%; font-size: 17px;"><b>স্থায়ী ঠিকানা</b></div>
-        <div style="position: absolute; left: 37%; top: 87.3%; width: 48%; font-size: 13.5px; text-align: left; white-space: normal;">${permanentAddr}</div>
+        <div style="position: absolute; left: 37%; top: 87.3%; width: 48%; font-size: 13px; text-align: left; white-space: normal;">${permanentAddr}</div>
 
         <div style="position: absolute; top: 94.8%; width: 100%; font-size: 14px; text-align: center; color: rgb(255, 0, 0);">উপরে প্রদর্শিত তথ্যসমূহ জাতীয় পরিচয়পত্র সংশ্লিষ্ট, ভোটার তালিকার সাথে সরাসরি সম্পর্কযুক্ত নয়।</div>
         <div style="position: absolute; top: 96.5%; width: 100%; text-align: center; font-size: 12px; color: rgb(3, 3, 3);">This is Software Generated Report From Bangladesh Election Commission, Signature &amp; Seal Aren't Required.</div>
