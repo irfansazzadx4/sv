@@ -977,48 +977,54 @@ function buildHTML(version, data) {
 async function convertHTMLtoPDF(html) {
   if (!CONFIG.PDF_API_URL) throw new Error("PDF_API_URL set করা নেই!");
 
-  const res = await axios.post(`${CONFIG.PDF_API_URL}/pdf`, {
-    secret: CONFIG.PDF_API_SECRET,
-    html,
-  }, {
-    timeout: 90000,
-    maxContentLength: Infinity,
-    maxBodyLength: Infinity,
-    responseType: "arraybuffer", // ✅ raw bytes হিসেবে নাও
-  });
+  let res;
+  try {
+    res = await axios.post(`${CONFIG.PDF_API_URL}/pdf`, {
+      secret: CONFIG.PDF_API_SECRET,
+      html,
+    }, {
+      timeout: 90000,
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
+      responseType: "arraybuffer",
+    });
+  } catch (e) {
+    throw new Error("PDF server connect error: " + e.message);
+  }
 
-  // arraybuffer থেকে string বানাও
-  const raw = Buffer.from(res.data).toString("utf8");
-
-  // JSON parse করো
+  // ✅ arraybuffer → string → JSON parse
   let parsed;
   try {
+    const raw = Buffer.from(res.data).toString("utf8");
     parsed = JSON.parse(raw);
   } catch (e) {
-    throw new Error("PDF API response JSON parse failed: " + raw.slice(0, 200));
+    throw new Error("PDF server response parse failed");
   }
 
-  console.log("📦 PDF API keys:", Object.keys(parsed));
-  console.log("📦 PDF size field:", parsed.size);
+  if (!parsed.success) {
+    throw new Error("PDF server error: " + (parsed.error || "Unknown"));
+  }
 
   const base64 = parsed.pdf;
-  if (!base64) {
-    throw new Error("base64 পাওয়া যায়নি: " + JSON.stringify(parsed).slice(0, 200));
+  if (!base64 || typeof base64 !== "string") {
+    throw new Error("PDF base64 পাওয়া যায়নি");
   }
 
-  // Clean করো
-  const clean = base64.replace(/\s/g, "");
-  console.log("📦 base64 length:", clean.length);
+  // ✅ Decode
+  const buffer = Buffer.from(base64, "base64");
 
-  const buffer = Buffer.from(clean, "base64");
+  // ✅ Size check
+  if (buffer.length !== parsed.size) {
+    console.warn(`⚠️ Size mismatch: got ${buffer.length}, expected ${parsed.size}`);
+  }
 
+  // ✅ Header check
   const header = buffer.slice(0, 4).toString("ascii");
-  console.log("📄 PDF header:", header, "| Size:", buffer.length);
-
   if (header !== "%PDF") {
-    throw new Error(`Invalid PDF! Header: "${header}"`);
+    throw new Error(`Invalid PDF header: "${header}"`);
   }
 
+  console.log("✅ PDF OK — Size:", buffer.length);
   return buffer;
 }
 
