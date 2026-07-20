@@ -23,9 +23,9 @@ const CONFIG = {
   WA_VERIFY_TOKEN: process.env.WHATSAPP_VERIFY_TOKEN || "myVerifyToken123",
   WA_API_VERSION:  "v21.0",
 
-  API_EXTRACT_URL: "https://onlinebd.top/api_proxy_server.php",
+  API_EXTRACT_URL: "https://onlinebd.duckdns.org/api_proxy_server.php",
   SITE_BASE:       "https://dakhila-ldtax-gov-bd.rf.gd",
-  ASSETS:          "https://onlinebd.top",
+  ASSETS:          "https://onlinebd.duckdns.org",
 
   PDF_API_URL:    process.env.PDF_API_URL,
   PDF_API_SECRET: process.env.PDF_API_SECRET,
